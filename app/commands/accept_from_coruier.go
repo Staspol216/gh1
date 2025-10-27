@@ -6,17 +6,20 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/Staspol216/gh1/models/order"
+	order_storage "github.com/Staspol216/gh1/storage"
 )
 
 const argsCount = 3
 const timeLayout = "2006-01-02"
 
-func AcceptFromCourier(args []string) {
+func AcceptFromCourier(args []string, storage *order_storage.OrderStorage) *order.Order {
 	flagSet := flag.NewFlagSet("command", flag.ContinueOnError)
 	
 	var (
-		order = flagSet.Int64("order", 0, "order id")
-		recipient = flagSet.Int64("recipient", 0, "recipient id")
+		orderId = flagSet.Int64("order", 0, "order id")
+		recipientId = flagSet.Int64("recipient", 0, "recipient id")
 		expiration = flagSet.String("expiration", "", "expiration datetime")
 	)
 	
@@ -38,13 +41,18 @@ func AcceptFromCourier(args []string) {
 		log.Fatal(err) 
 	}
 	
-	fmt.Println(*order, *recipient, parsedExpirationDate)
+	fmt.Println(*orderId, *recipientId, parsedExpirationDate)
+	fmt.Println(args)
 	
 	if err != nil {
 		log.Fatalf("flagSet.Parse: %s", err)
 	}
 	
-	fmt.Println(args)	
+	newOrder := order.New(*orderId, parsedExpirationDate)
+	
+	storage.GetUserStoreById(*recipientId).AddOrder(newOrder)
+	
+	return newOrder
 }
 
 func isPastDate(date time.Time) bool {

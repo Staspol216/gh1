@@ -1,10 +1,10 @@
 package main
 
 import (
-	app "github.com/Staspol216/gh1/models"
+	pvzApp "github.com/Staspol216/gh1/app"
 )
 
 func main()  {
-	app := app.New()
-	app.Run()
+	pvz := pvzApp.New()
+	pvz.Run()
 }

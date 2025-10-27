@@ -1,4 +1,4 @@
-package models
+package pvzApp
 
 import (
 	"bufio"
@@ -7,8 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Staspol216/gh1/commands"
-	"github.com/Staspol216/gh1/models/command"
+	"github.com/Staspol216/gh1/app/commands"
+	"github.com/Staspol216/gh1/command"
+	order_storage "github.com/Staspol216/gh1/storage"
 )
 
 type App struct {}
@@ -37,8 +38,14 @@ func (app *App) Run() {
 			log.Fatal("Incorrect command")
 		}
 		
+		storage, strError := order_storage.New("storage/order_storage.json")
+		
+		if strError != nil {
+			log.Fatal("order_storage.New: %w", strError)
+		}
+		
 		fmt.Println(args)
-		app.handleCommand(parsedCommand, args)
+		app.handleCommand(parsedCommand, args, storage)
 		
 	}
 }
@@ -54,13 +61,13 @@ func (c *App) getCommandAndArgs(input string) (string, []string, bool) {
 	return fields[0], fields[1:], true
 }
 
-func (c *App) handleCommand(v command.Command, args []string) {
+func (c *App) handleCommand(v command.Command, args []string, storage *order_storage.OrderStorage) {
 	switch v {
 	case command.Exit:
 		commands.Exit()
 	case command.Help:
 		commands.Help()
 	case command.AcceptFromCourier:
-		commands.AcceptFromCourier(args)
+		commands.AcceptFromCourier(args, storage)
 	}
 }

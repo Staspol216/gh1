@@ -17,7 +17,7 @@ const (
 )
 
 var commandName = map[Command]string{
-	Unknown: "",
+	Unknown: 				"",
     Exit:   				"exit",
     Help: 					"help",
 	AcceptFromCourier: 		"acceptFromCourier",
