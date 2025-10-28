@@ -37,12 +37,10 @@ func AcceptFromCourier(args []string, storage *order_storage.OrderStorage) *orde
 	}
 
 	if isPast := isPastDate(parsedExpirationDate); isPast {
-		err := errors.New("expiration date can't be in the past")
-		log.Fatal(err) 
+		fmt.Printf("expiration date can't be in the past")
 	}
 	
 	fmt.Println(*orderId, *recipientId, parsedExpirationDate)
-	fmt.Println(args)
 	
 	if err != nil {
 		log.Fatalf("flagSet.Parse: %s", err)
@@ -50,7 +48,10 @@ func AcceptFromCourier(args []string, storage *order_storage.OrderStorage) *orde
 	
 	newOrder := order.New(*orderId, parsedExpirationDate)
 	
-	storage.GetUserStoreById(*recipientId).AddOrder(newOrder)
+	fmt.Println(newOrder, 32233232)
+	
+	storage.SaveOrderToStore(*recipientId, newOrder)
+	
 	
 	return newOrder
 }
