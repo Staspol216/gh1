@@ -48,10 +48,7 @@ func AcceptFromCourier(args []string, storage *order_storage.OrderStorage) *orde
 	
 	newOrder := order.New(*orderId, parsedExpirationDate)
 	
-	fmt.Println(newOrder, 32233232)
-	
 	storage.SaveOrderToStore(*recipientId, newOrder)
-	
 	
 	return newOrder
 }

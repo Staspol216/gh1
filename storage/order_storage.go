@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 
 	"github.com/Staspol216/gh1/models/order"
 )
 type UserId = int64
 type UserStore struct {
-	Orders []*order.Order
+	Orders []*order.Order `json:"order"`
 }
 type OrderStorage struct {
 	stores map[UserId]*UserStore
@@ -52,31 +53,20 @@ func (s *OrderStorage) saveStorageToFile() error {
 	encoder := json.NewEncoder(f)
 	encoder.SetIndent("", "\t")
 	
-	fmt.Println(s.stores[2].Orders[0], 3423423423424324242)
 	encoderError := encoder.Encode(s.stores)
 	if encoderError != nil {
 		fmt.Println(encoderError)
 		log.Fatalln(encoderError, 2)
 	}
 	
-	fmt.Println("Struct successfully written to json")
+	fmt.Println("Struct was saved to json successfully")
 	
 	return nil
 }
 
 
-func (orderStorage *OrderStorage) GetUserStoreById(userId int64) *UserStore {
-	return orderStorage.stores[userId]
-}
-
-func (store *UserStore) FindOrderById(orderId int64) (*order.Order, bool) {
-	for _, order := range store.Orders {
-		if order.ID == orderId {
-			return order, true
-		}
-	}
-	
-	return nil, false
+func (storage *OrderStorage) GetUserStoreById(userId int64) *UserStore {
+	return storage.stores[userId]
 }
 
 func (storage *OrderStorage) SaveOrderToStore(recipientId int64, newOrder *order.Order) bool {
@@ -108,9 +98,34 @@ func (storage *OrderStorage) SaveOrderToStore(recipientId int64, newOrder *order
 	return true
 }
 
+func (storage *OrderStorage) DeleteOrderFromStore(recipientId int64, orderId int64) *UserStore  {
+	store := storage.GetUserStoreById(recipientId)
+	order, exists := store.FindOrderById(orderId)
+	
+	if exists && order.IsExpiredOrder() {
+		store.DeleteOrderById(orderId)
+	}
+	
+	return store
+}
+
+func (store *UserStore) DeleteOrderById(orderId int64)  {	
+	store.Orders = slices.DeleteFunc(store.Orders, func(o *order.Order) bool {
+		return o.ID == orderId
+	})
+}
+
+func (store *UserStore) FindOrderById(orderId int64) (*order.Order, bool) {
+	for _, order := range store.Orders {
+		if order.ID == orderId {
+			return order, true
+		}
+	}
+	
+	return nil, false
+}
 
 func (store *UserStore) AddOrder(order *order.Order) *UserStore {
-	fmt.Println(store, order, "store, order")
 	store.Orders = append(store.Orders, order)
 	return store
 }

@@ -3,8 +3,8 @@ package order
 import "time"
 
 type Order struct {
-	ID int64
-	Expiration time.Time
+	ID int64				`json:"id"`
+	Expiration time.Time	`json:"expiration"`
 }
 
 func New(id int64, expiration time.Time) *Order {
@@ -14,6 +14,7 @@ func New(id int64, expiration time.Time) *Order {
 	}
 }
 
-func (o *Order) IsExpiredOrder() time.Time {
-	return o.Expiration
+func (o *Order) IsExpiredOrder() bool {
+	res := o.Expiration.Compare(time.Now())
+	return res == 1
 }
