@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	"github.com/Staspol216/gh1/app/commands"
-	"github.com/Staspol216/gh1/command"
-	order_storage "github.com/Staspol216/gh1/storage"
+	"github.com/Staspol216/gh1/models/command"
+	warehouse "github.com/Staspol216/gh1/storage"
 )
 
-type App struct {}
+type App struct{}
 
 func New() *App {
 	return &App{}
@@ -21,53 +21,51 @@ func New() *App {
 func (app *App) Run() {
 	for {
 		fmt.Printf("> ")
-		
+
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 		input := scanner.Text()
-		
+
 		commandString, args, ok := app.getCommandAndArgs(input)
-		
-		if (!ok) {
+
+		if !ok {
 			log.Fatal("Cannot get command")
 		}
-		
-		parsedCommand, err := command.Parse(commandString)
-		
-		if err != nil {
-			log.Fatal("Incorrect command")
-		}
-		
-		storage, strError := order_storage.New("storage/order_storage.json")
-		
+
+		warehouse, strError := warehouse.New("storage/warehouse.json")
+
 		if strError != nil {
-			log.Fatal("order_storage.New: %w", strError)
+			log.Fatal("warehouse.New: %w", strError)
 		}
-		
+
 		fmt.Println(args)
-		app.handleCommand(parsedCommand, args, storage)
-		
+		app.handleCommand(commandString, args, warehouse)
+
 	}
 }
 
 func (c *App) getCommandAndArgs(input string) (string, []string, bool) {
 	fields := strings.Fields(input)
-	
-	fmt.Println(fields)
-	
+
 	if len(fields) == 0 {
 		return "", nil, false
 	}
 	return fields[0], fields[1:], true
 }
 
-func (c *App) handleCommand(v command.Command, args []string, storage *order_storage.OrderStorage) {
+func (c *App) handleCommand(v string, args []string, w *warehouse.Warehouse) {
 	switch v {
-	case command.Exit:
+	case command.Exit.String():
 		commands.Exit()
-	case command.Help:
+	case command.Help.String():
 		commands.Help()
-	case command.AcceptFromCourier:
-		commands.AcceptFromCourier(args, storage)
+	case command.AcceptFromCourier.String():
+		order := commands.AcceptFromCourier(args)
+		w.SaveOrder(order)
+	case command.ReturnFromCourier.String():
+		orderId := commands.ReturnFromCourier(args)
+		w.DeleteExpiredOrderById(orderId)
+	default:
+		commands.Unknown()
 	}
 }

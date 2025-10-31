@@ -2,8 +2,13 @@ package commands
 
 import (
 	"fmt"
+
+	"github.com/Staspol216/gh1/models/command"
 )
 
 func Help() {
-	fmt.Println("List of all available commands: exit, help")
+	fmt.Println("Available commands:")
+	for _, value := range command.CommandName {
+		fmt.Println(value)
+	}
 }
