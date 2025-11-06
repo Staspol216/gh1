@@ -3,24 +3,22 @@ package commands
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"time"
 
-	"github.com/Staspol216/gh1/models/order"
 	"github.com/Staspol216/gh1/utils"
 )
 
 const timeLayout = "2006-01-02"
 
-func AcceptFromCourier(args []string) *order.Order {
+func AcceptFromCourier(args []string) (*int64, *int64, *time.Time) {
 	const argsCount = 3
 	flagSet := flag.NewFlagSet("command", flag.ContinueOnError)
 
 	var (
 		orderId     = flagSet.Int64("order", 0, "order id")
 		recipientId = flagSet.Int64("recipient", 0, "recipient id")
-		expiration  = flagSet.String("expiration", "", "expiration datetime")
+		expirationDate  = flagSet.String("expiration", "", "expiration datetime")
 	)
 
 	err := flagSet.Parse(args)
@@ -34,19 +32,16 @@ func AcceptFromCourier(args []string) *order.Order {
 		log.Fatal(err)
 	}
 
-	parsedExpirationDate, expirationErr := time.Parse(timeLayout, *expiration)
+	parsedExpirationDate, expirationErr := time.Parse(timeLayout, *expirationDate)
 
 	if expirationErr != nil {
-		fmt.Printf("time.Parse: %s", expirationErr)
-		return nil
+		log.Printf("time.Parse: %s", expirationErr)
+		return nil, nil , nil
 	}
 
 	if isPast := utils.IsPastDate(parsedExpirationDate); isPast {
-		fmt.Println("expiration date can't be in the past")
-		return nil
+		log.Fatal("expiration date can't be in the past")
 	}
 
-	newOrder := order.New(*orderId, *recipientId, parsedExpirationDate)
-
-	return newOrder
+	return orderId, recipientId, &parsedExpirationDate
 }

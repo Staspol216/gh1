@@ -8,6 +8,9 @@ const (
 	Help
 	AcceptFromCourier
 	ReturnFromCourier
+	ServeRecipient
+	GetAllRefunds
+	GetHistory
 )
 
 var CommandName = map[Command]string{
@@ -16,6 +19,9 @@ var CommandName = map[Command]string{
 	Help:              "help",
 	AcceptFromCourier: "acceptFromCourier",
 	ReturnFromCourier: "returnFromCourier",
+	ServeRecipient:    "serveRecipient",
+	GetAllRefunds:	   "getAllRefunds",
+	GetHistory:        "getHistory",
 }
 
 func (c Command) String() string {

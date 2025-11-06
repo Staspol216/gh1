@@ -15,12 +15,13 @@ func ReturnFromCourier(args []string) int64 {
 		orderId = flagSet.Int64("order", 0, "order id")
 	)
 	
+	err := flagSet.Parse(args)
+	
 	if nFlagSet := flagSet.NFlag(); nFlagSet != argsCount {
 		err := errors.New("some arguments are missing")
 		log.Fatal(err)
 	}
 
-	err := flagSet.Parse(args)
 	
 	if err != nil {
 		log.Fatalf("flagSet.Parse: %s", err)
