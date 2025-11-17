@@ -20,7 +20,7 @@ var CommandName = map[Command]string{
 	AcceptFromCourier: "acceptFromCourier",
 	ReturnFromCourier: "returnFromCourier",
 	ServeRecipient:    "serveRecipient",
-	GetAllRefunds:	   "getAllRefunds",
+	GetAllRefunds:     "getAllRefunds",
 	GetHistory:        "getHistory",
 }
 

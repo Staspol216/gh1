@@ -11,6 +11,7 @@ import (
 	"github.com/Staspol216/gh1/app/commands"
 	"github.com/Staspol216/gh1/models/command"
 )
+
 type Pvz interface {
 	AcceptFromCourier(orderId int64, recipientId int64, expiration time.Time)
 	DeleteExpiredOrderById(id int64)
@@ -23,7 +24,7 @@ type App struct {
 }
 
 func New(pvz Pvz) *App {
-	return &App{ pvz }
+	return &App{pvz}
 }
 
 func (app *App) Run() {
@@ -39,7 +40,7 @@ func (app *App) Run() {
 		if !ok {
 			log.Fatal("Cannot get command")
 		}
-		
+
 		app.handleCommand(command, args)
 	}
 }

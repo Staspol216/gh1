@@ -13,7 +13,7 @@ func main() {
 	if strError != nil {
 		log.Fatal("warehouse.New: %w", strError)
 	}
-		
+
 	app := pvzApp.New(warehouse)
 	app.Run()
 }

@@ -16,13 +16,13 @@ func AcceptFromCourier(args []string) (*int64, *int64, *time.Time) {
 	flagSet := flag.NewFlagSet("command", flag.ContinueOnError)
 
 	var (
-		orderId     = flagSet.Int64("order", 0, "order id")
-		recipientId = flagSet.Int64("recipient", 0, "recipient id")
-		expirationDate  = flagSet.String("expiration", "", "expiration datetime")
+		orderId        = flagSet.Int64("order", 0, "order id")
+		recipientId    = flagSet.Int64("recipient", 0, "recipient id")
+		expirationDate = flagSet.String("expiration", "", "expiration datetime")
 	)
 
 	err := flagSet.Parse(args)
-	
+
 	if err != nil {
 		log.Fatalf("flagSet.Parse: %s", err)
 	}
@@ -36,7 +36,7 @@ func AcceptFromCourier(args []string) (*int64, *int64, *time.Time) {
 
 	if expirationErr != nil {
 		log.Printf("time.Parse: %s", expirationErr)
-		return nil, nil , nil
+		return nil, nil, nil
 	}
 
 	if isPast := utils.IsPastDate(parsedExpirationDate); isPast {

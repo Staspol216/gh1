@@ -7,11 +7,11 @@ import (
 type OrderStatus string
 
 const (
-	OrderStatusReceived     OrderStatus = "received"      // принят от курьера
-	OrderStatusReturned     OrderStatus = "returned"      // возвращен курьеру
-	OrderStatusDelivered    OrderStatus = "delivered"     // выдан клиенту
-	OrderStatusRefunded     OrderStatus = "refunded"      // возвращен клиентом
-	OrderStatusExpired      OrderStatus = "storage_ended" // срок хранения истек
+	OrderStatusReceived  OrderStatus = "received"      // принят от курьера
+	OrderStatusReturned  OrderStatus = "returned"      // возвращен курьеру
+	OrderStatusDelivered OrderStatus = "delivered"     // выдан клиенту
+	OrderStatusRefunded  OrderStatus = "refunded"      // возвращен клиентом
+	OrderStatusExpired   OrderStatus = "storage_ended" // срок хранения истек
 )
 
 type Order struct {
@@ -26,9 +26,9 @@ type Order struct {
 }
 
 type OrderRecord struct {
-	Timestamp time.Time   `json:"timestamp"`
-	Status    OrderStatus `json:"status"`
-	Description string    `json:"description"`
+	Timestamp   time.Time   `json:"timestamp"`
+	Status      OrderStatus `json:"status"`
+	Description string      `json:"description"`
 }
 
 func New(id int64, recipientId int64, expirationDate time.Time) *Order {
@@ -51,20 +51,20 @@ func (o *Order) CanBeRefunded() bool {
 	return o.Status == OrderStatusDelivered && itCanBeRefunded
 }
 
-func (o *Order) AddHistoryRecord(description string)  {
+func (o *Order) AddHistoryRecord(description string) {
+
 	orderRecord := &OrderRecord{
-		Timestamp: time.Now(),
-		Status: o.Status,
+		Timestamp:   time.Now(),
+		Status:      o.Status,
 		Description: description,
 	}
 	o.History = append(o.History, *orderRecord)
 }
 
-
 func (o *Order) RefundByRecipient() {
 	now := time.Now()
 	o.RefundedDate = &now
-	
+
 	o.SetStatus(OrderStatusRefunded)
 	o.AddHistoryRecord("Возвращен клиентом")
 }
@@ -87,4 +87,3 @@ func (o *Order) SetDeliveredDate(date *time.Time) *Order {
 	o.DeliveredDate = date
 	return o
 }
-

@@ -35,28 +35,28 @@ func (orderIds *OrderIds) Set(value string) error {
 
 func ServeRecipient(args []string) (OrderIds, int64, string) {
 	const argsCount = 3
-	
+
 	flagSet := flag.NewFlagSet("command", flag.ContinueOnError)
-	
+
 	var orderIds OrderIds
-	
+
 	flagSet.Var(&orderIds, "orders", "orders ids")
-	
+
 	var (
 		recipientId = flagSet.Int64("recipient", 0, "recipient id")
-		action = flagSet.String("action", "", "recipient id")
+		action      = flagSet.String("action", "", "recipient id")
 	)
-	
+
 	err := flagSet.Parse(args)
-	
+
 	if nFlagSet := flagSet.NFlag(); nFlagSet != argsCount {
 		err := errors.New("some arguments are missing")
 		log.Fatal(err)
 	}
-	
+
 	if err != nil {
 		log.Fatalf("flagSet.Parse: %s", err)
 	}
-	
+
 	return orderIds, *recipientId, *action
 }
