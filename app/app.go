@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Staspol216/gh1/app/commands"
-	"github.com/Staspol216/gh1/models/command"
+	"github.com/Staspol216/gh1/cli"
+	"github.com/Staspol216/gh1/cli/command"
 )
 
 type Pvz interface {
 	AcceptFromCourier(orderId int64, recipientId int64, expiration time.Time)
-	DeleteExpiredOrderById(id int64)
+	ReturnToCourier(id int64)
 	ServeRecipient(orderIds []int64, recipientId int64, action string)
 	GetAllRefunds()
 	GetHistory()
@@ -24,7 +24,9 @@ type App struct {
 }
 
 func New(pvz Pvz) *App {
-	return &App{pvz}
+	return &App{
+		pvz,
+	}
 }
 
 func (app *App) Run() {
@@ -57,23 +59,25 @@ func (c *App) getCommandAndArgs(input string) (string, []string, bool) {
 func (app *App) handleCommand(v string, args []string) {
 	switch v {
 	case command.Exit.String():
-		commands.Exit()
+		cli.Exit()
 	case command.Help.String():
-		commands.Help()
+		cli.Help()
 	case command.AcceptFromCourier.String():
-		orderId, recipientId, parsedExpirationDate := commands.AcceptFromCourier(args)
+		orderId, recipientId, parsedExpirationDate := cli.AcceptFromCourier(args)
 		app.pvz.AcceptFromCourier(*orderId, *recipientId, *parsedExpirationDate)
 	case command.ReturnFromCourier.String():
-		orderId := commands.ReturnFromCourier(args)
-		app.pvz.DeleteExpiredOrderById(orderId)
+		orderId := cli.ReturnFromCourier(args)
+		app.pvz.ReturnToCourier(orderId)
 	case command.ServeRecipient.String():
-		orderIds, recipientId, action := commands.ServeRecipient(args)
+		orderIds, recipientId, action := cli.ServeRecipient(args)
 		app.pvz.ServeRecipient(orderIds, recipientId, action)
 	case command.GetAllRefunds.String():
+		cli.GetAllRefunds(args)
 		app.pvz.GetAllRefunds()
 	case command.GetHistory.String():
+		cli.GetHistory(args)
 		app.pvz.GetHistory()
 	default:
-		commands.Unknown()
+		cli.Unknown()
 	}
 }

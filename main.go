@@ -4,16 +4,26 @@ import (
 	"log"
 
 	pvzApp "github.com/Staspol216/gh1/app"
-	warehouse "github.com/Staspol216/gh1/storage"
+	PvzSerivce "github.com/Staspol216/gh1/service"
+	"github.com/Staspol216/gh1/storage"
 )
 
 func main() {
-	warehouse, strError := warehouse.New("storage/warehouse.json")
-
-	if strError != nil {
-		log.Fatal("warehouse.New: %w", strError)
+	config := &storage.Config{
+		StorageType: storage.StorageTypeInmemory,
+		Inmemory: &storage.InMemoryConfig{
+			Path: "data/pvz.json",
+		},
 	}
 
-	app := pvzApp.New(warehouse)
+	orderStorage, strError := storage.New(config)
+
+	if strError != nil {
+		log.Fatal("pvz.New: %w", strError)
+	}
+
+	pvzService := PvzSerivce.New(orderStorage)
+
+	app := pvzApp.New(pvzService)
 	app.Run()
 }

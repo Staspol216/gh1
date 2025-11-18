@@ -1,9 +1,9 @@
-package commands
+package cli
 
 import (
 	"fmt"
 
-	"github.com/Staspol216/gh1/models/command"
+	"github.com/Staspol216/gh1/cli/command"
 )
 
 func Help() {

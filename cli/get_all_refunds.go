@@ -1,3 +1,3 @@
-package commands
+package cli
 
 func GetAllRefunds(args []string) {}
