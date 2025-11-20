@@ -6,14 +6,14 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/Staspol216/gh1/cli"
-	"github.com/Staspol216/gh1/cli/command"
+	"github.com/Staspol216/gh1/handlers/cli"
+	"github.com/Staspol216/gh1/handlers/cli/command"
+	"github.com/Staspol216/gh1/models/order"
 )
 
 type Pvz interface {
-	AcceptFromCourier(orderId int64, recipientId int64, expiration time.Time)
+	AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool)
 	ReturnToCourier(id int64)
 	ServeRecipient(orderIds []int64, recipientId int64, action string)
 	GetAllRefunds()
@@ -63,8 +63,8 @@ func (app *App) handleCommand(v string, args []string) {
 	case command.Help.String():
 		cli.Help()
 	case command.AcceptFromCourier.String():
-		orderId, recipientId, parsedExpirationDate := cli.AcceptFromCourier(args)
-		app.pvz.AcceptFromCourier(*orderId, *recipientId, *parsedExpirationDate)
+		cliPayload := cli.AcceptFromCourier(args)
+		app.pvz.AcceptFromCourier(ToOrderParams(cliPayload), *cliPayload.Packaging, *cliPayload.MembranaIncluded)
 	case command.ReturnFromCourier.String():
 		orderId := cli.ReturnFromCourier(args)
 		app.pvz.ReturnToCourier(orderId)
@@ -79,5 +79,15 @@ func (app *App) handleCommand(v string, args []string) {
 		app.pvz.GetHistory()
 	default:
 		cli.Unknown()
+	}
+}
+
+func ToOrderParams(p *cli.OrderPayload) *order.OrderParams {
+	return &order.OrderParams{
+		OrderId:        *p.OrderId,
+		RecipientId:    *p.RecipientId,
+		ExpirationDate: *p.ExpirationDate,
+		Weight:         *p.Weight,
+		Worth:          *p.Worth,
 	}
 }

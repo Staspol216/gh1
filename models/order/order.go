@@ -23,6 +23,8 @@ type Order struct {
 	ReturnedDate   *time.Time    `json:"returned_date"`
 	Status         OrderStatus   `json:"status"`
 	History        []OrderRecord `json:"history"`
+	Weight         float64       `json:"weight"`
+	Worth          float64       `json:"worth"`
 }
 
 type OrderRecord struct {
@@ -31,13 +33,23 @@ type OrderRecord struct {
 	Description string      `json:"description"`
 }
 
-func New(id int64, recipientId int64, expirationDate time.Time) *Order {
+type OrderParams struct {
+	OrderId        int64
+	RecipientId    int64
+	ExpirationDate time.Time
+	Weight         float64
+	Worth          float64
+}
+
+func New(data *OrderParams) *Order {
 	return &Order{
-		ID:             id,
-		ExpirationDate: expirationDate,
-		RecipientID:    recipientId,
+		ID:             data.OrderId,
+		ExpirationDate: data.ExpirationDate,
+		RecipientID:    data.RecipientId,
 		Status:         OrderStatusReceived,
 		History:        []OrderRecord{},
+		Weight:         data.Weight,
+		Worth:          data.Worth,
 	}
 }
 
@@ -52,7 +64,6 @@ func (o *Order) CanBeRefunded() bool {
 }
 
 func (o *Order) AddHistoryRecord(description string) {
-
 	orderRecord := &OrderRecord{
 		Timestamp:   time.Now(),
 		Status:      o.Status,

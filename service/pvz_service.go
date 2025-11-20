@@ -35,11 +35,42 @@ func New(storage storage.Storager) *Pvz {
 	}
 }
 
-func (s *Pvz) AcceptFromCourier(orderId int64, recipientId int64, expiration time.Time) {
-	newOrder := order.New(orderId, recipientId, expiration)
+func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool) {
+	newOrder := order.New(payload)
+	s.ApplyPackaging(newOrder, packagingType, additionalMembrana)
 	newOrder.SetStatus(order.OrderStatusReceived)
 	newOrder.AddHistoryRecord("Заказ получен от курьера")
 	s.storage.SaveOrder(newOrder)
+}
+
+func (s *Pvz) getPackagingStrategy(packagingType string, additionalMembrana bool) PackagingStrategy {
+	var Strategy PackagingStrategy
+
+	switch packagingType {
+	case "box":
+		Strategy = &PackagingBoxStrategy{}
+	case "bag":
+		Strategy = &PackagingBagStrategy{}
+	default:
+		fmt.Print("Unknown package type")
+	}
+
+	if additionalMembrana {
+		Strategy = &MembranaDecorator{Strategy}
+	}
+
+	return Strategy
+}
+
+func (s *Pvz) ApplyPackaging(order *order.Order, packagingType string, additionalMembrana bool) error {
+	packagingStrategy := s.getPackagingStrategy(packagingType, additionalMembrana)
+
+	if err := packagingStrategy.Validate(order.Weight); err != nil {
+		return err
+	}
+
+	order.Worth = packagingStrategy.CalculateWorth(order.Worth)
+	return nil
 }
 
 func (s *Pvz) ReturnToCourier(orderId int64) {

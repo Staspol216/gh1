@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/Staspol216/gh1/cli/command"
+	"github.com/Staspol216/gh1/handlers/cli/command"
 )
 
 func Help() {

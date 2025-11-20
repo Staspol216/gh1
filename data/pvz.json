@@ -1,161 +1,146 @@
 [
 	{
-		"id": 1,
-		"recipient_id": 2,
-		"expiration_date": "2025-11-11T00:00:00Z",
+		"id": 354568999,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
 		"delivered_date": null,
 		"refunded_date": null,
 		"returned_date": null,
 		"status": "received",
 		"history": [
 			{
-				"timestamp": "2025-11-07T00:36:20.036792+03:00",
+				"timestamp": "2025-11-20T08:57:35.160738+03:00",
 				"status": "received",
 				"description": "Заказ получен от курьера"
 			}
-		]
+		],
+		"weight": 3.67,
+		"worth": 5680
 	},
 	{
-		"id": 34,
-		"recipient_id": 56,
-		"expiration_date": "2025-11-15T00:00:00Z",
+		"id": 6567567,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
 		"delivered_date": null,
 		"refunded_date": null,
 		"returned_date": null,
 		"status": "received",
 		"history": [
 			{
-				"timestamp": "2025-11-07T00:37:04.342498+03:00",
+				"timestamp": "2025-11-20T08:59:22.393786+03:00",
 				"status": "received",
 				"description": "Заказ получен от курьера"
 			}
-		]
+		],
+		"weight": 3.67,
+		"worth": 5680
 	},
 	{
-		"id": 98,
-		"recipient_id": 456,
-		"expiration_date": "2025-11-09T00:00:00Z",
+		"id": 786666,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
 		"delivered_date": null,
 		"refunded_date": null,
 		"returned_date": null,
 		"status": "received",
 		"history": [
 			{
-				"timestamp": "2025-11-07T00:37:40.893213+03:00",
+				"timestamp": "2025-11-20T09:00:45.492463+03:00",
 				"status": "received",
 				"description": "Заказ получен от курьера"
 			}
-		]
+		],
+		"weight": 3.67,
+		"worth": 5680
 	},
 	{
-		"id": 99,
-		"recipient_id": 567,
-		"expiration_date": "2025-11-10T00:00:00Z",
+		"id": 348888,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
 		"delivered_date": null,
 		"refunded_date": null,
 		"returned_date": null,
 		"status": "received",
 		"history": [
 			{
-				"timestamp": "2025-11-07T00:38:24.542194+03:00",
+				"timestamp": "2025-11-20T09:01:18.71247+03:00",
 				"status": "received",
 				"description": "Заказ получен от курьера"
 			}
-		]
+		],
+		"weight": 3.67,
+		"worth": 5701
 	},
 	{
-		"id": 100,
-		"recipient_id": 456,
-		"expiration_date": "2025-11-11T00:00:00Z",
-		"delivered_date": "2025-11-07T00:40:09.386553+03:00",
-		"refunded_date": "2025-11-07T00:40:33.970683+03:00",
-		"returned_date": null,
-		"status": "refunded",
-		"history": [
-			{
-				"timestamp": "2025-11-07T00:38:52.072952+03:00",
-				"status": "received",
-				"description": "Заказ получен от курьера"
-			},
-			{
-				"timestamp": "2025-11-07T00:40:09.386554+03:00",
-				"status": "delivered",
-				"description": "Заказ выдан клиенту"
-			},
-			{
-				"timestamp": "2025-11-07T00:40:33.970684+03:00",
-				"status": "refunded",
-				"description": "Возвращен клиентом"
-			}
-		]
-	},
-	{
-		"id": 101,
-		"recipient_id": 456,
-		"expiration_date": "2025-11-11T00:00:00Z",
-		"delivered_date": "2025-11-07T00:40:09.386555+03:00",
-		"refunded_date": null,
-		"returned_date": null,
-		"status": "delivered",
-		"history": [
-			{
-				"timestamp": "2025-11-07T00:39:24.543322+03:00",
-				"status": "received",
-				"description": "Заказ получен от курьера"
-			},
-			{
-				"timestamp": "2025-11-07T00:40:09.386555+03:00",
-				"status": "delivered",
-				"description": "Заказ выдан клиенту"
-			}
-		]
-	},
-	{
-		"id": 216216,
-		"recipient_id": 1479,
-		"expiration_date": "2025-12-12T00:00:00Z",
+		"id": 454532222,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
 		"delivered_date": null,
 		"refunded_date": null,
 		"returned_date": null,
 		"status": "received",
 		"history": [
 			{
-				"timestamp": "2025-11-17T21:53:05.076646+03:00",
+				"timestamp": "2025-11-20T09:02:41.634495+03:00",
 				"status": "received",
 				"description": "Заказ получен от курьера"
 			}
-		]
+		],
+		"weight": 3.67,
+		"worth": 5701
 	},
 	{
-		"id": 435435353,
-		"recipient_id": 23432423324,
-		"expiration_date": "2025-12-20T00:00:00Z",
+		"id": 22342423,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
 		"delivered_date": null,
 		"refunded_date": null,
 		"returned_date": null,
 		"status": "received",
 		"history": [
 			{
-				"timestamp": "2025-11-18T08:41:28.359899+03:00",
+				"timestamp": "2025-11-20T09:11:33.528785+03:00",
 				"status": "received",
 				"description": "Заказ получен от курьера"
 			}
-		]
+		],
+		"weight": 3.67,
+		"worth": 5701
 	},
 	{
-		"id": 433545354,
-		"recipient_id": 3453453534,
-		"expiration_date": "2025-12-15T00:00:00Z",
+		"id": 777889999,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
 		"delivered_date": null,
 		"refunded_date": null,
 		"returned_date": null,
 		"status": "received",
 		"history": [
 			{
-				"timestamp": "2025-11-18T23:30:02.08981+03:00",
+				"timestamp": "2025-11-20T09:14:08.383943+03:00",
 				"status": "received",
 				"description": "Заказ получен от курьера"
 			}
-		]
+		],
+		"weight": 3.67,
+		"worth": 5700
+	},
+	{
+		"id": 77788,
+		"recipient_id": 44788,
+		"expiration_date": "2025-11-30T00:00:00Z",
+		"delivered_date": null,
+		"refunded_date": null,
+		"returned_date": null,
+		"status": "received",
+		"history": [
+			{
+				"timestamp": "2025-11-20T09:14:32.101336+03:00",
+				"status": "received",
+				"description": "Заказ получен от курьера"
+			}
+		],
+		"weight": 3.67,
+		"worth": 5685
 	}
 ]
