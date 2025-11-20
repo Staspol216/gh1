@@ -51,11 +51,13 @@ func (s *Pvz) getPackagingStrategy(packagingType string, additionalMembrana bool
 		Strategy = &PackagingBoxStrategy{}
 	case "bag":
 		Strategy = &PackagingBagStrategy{}
+	case "membrana":
+		Strategy = &PackagingMembranaStrategy{}
 	default:
 		fmt.Print("Unknown package type")
 	}
 
-	if additionalMembrana {
+	if additionalMembrana && packagingType != "membrana" {
 		Strategy = &MembranaDecorator{Strategy}
 	}
 
