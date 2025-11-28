@@ -1,10 +1,14 @@
 package storage
 
 import (
+	"context"
 	"errors"
+	"log"
 
+	"github.com/Staspol216/gh1/db"
 	"github.com/Staspol216/gh1/models/order"
-	inmemory "github.com/Staspol216/gh1/repository"
+	"github.com/Staspol216/gh1/repository/inmemory"
+	"github.com/Staspol216/gh1/repository/postgresql"
 )
 
 type StorageType string
@@ -18,26 +22,35 @@ type InMemoryConfig struct {
 	Path string
 }
 
+type PostgresConfig struct {
+	Context context.Context
+}
+
 type Config struct {
 	StorageType StorageType
 	Inmemory    *InMemoryConfig
+	Postgres    *PostgresConfig
 }
 
 type Storager interface {
-	GetOrders() []*order.Order
-	SaveOrder(newOrder *order.Order)
-	DeleteOrderById(orderId int64)
-	FindOrderById(orderId int64) (*order.Order, bool)
-	FindRecipientOrdersByIds(orderIds []int64, recipientId int64) []*order.Order
-	SaveStorageToFile() error
+	GetList() []*order.Order
+	Add(newOrder *order.Order) (int64, error)
+	Delete(orderId int64) error
+	Update(updatedOrder *order.Order)
+	GetByID(orderId int64) (*order.Order, error)
+	GetByRecipientAndIds(recipientId int64, orderIds []int64) ([]*order.Order, error)
 }
 
-func New(cfg *Config) (Storager, error) {
+func NewStorage(cfg *Config) (Storager, error) {
 	switch cfg.StorageType {
-	case StorageTypePostgres:
-		return inmemory.New(cfg.Inmemory.Path)
 	case StorageTypeInmemory:
-		return inmemory.New(cfg.Inmemory.Path)
+		return inmemory.NewOrderRepo(cfg.Inmemory.Path)
+	case StorageTypePostgres:
+		db, err := db.NewDb(cfg.Postgres.Context)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return postgresql.NewOrderRepo(db, cfg.Postgres.Context)
 	default:
 		return nil, errors.New("unknown storage type")
 	}

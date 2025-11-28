@@ -4,8 +4,6 @@ import (
 	"flag"
 	"log"
 	"time"
-
-	"github.com/Staspol216/gh1/utils"
 )
 
 const timeLayout = "2006-01-02"
@@ -69,10 +67,6 @@ func AcceptFromCourier(args []string) *OrderPayload {
 
 	if expirationErr != nil {
 		log.Fatalf("time.Parse: %s", expirationErr)
-	}
-
-	if isPast := utils.IsPastDate(parsedExpirationDate); isPast {
-		log.Fatal("expiration date can't be in the past")
 	}
 
 	return &OrderPayload{

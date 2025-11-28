@@ -2,11 +2,13 @@ package Serivces
 
 import (
 	"fmt"
+	"log"
 	"slices"
 	"time"
 
 	"github.com/Staspol216/gh1/models/order"
 	"github.com/Staspol216/gh1/storage"
+	"github.com/Staspol216/gh1/utils"
 )
 
 type Action int
@@ -36,11 +38,16 @@ func New(storage storage.Storager) *Pvz {
 }
 
 func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool) {
+	if isPast := utils.IsPastDate(payload.ExpirationDate); isPast {
+		log.Println("expiration date can't be in the past")
+		return
+	}
+
 	newOrder := order.New(payload)
 	s.ApplyPackaging(newOrder, packagingType, additionalMembrana)
 	newOrder.SetStatus(order.OrderStatusReceived)
 	newOrder.AddHistoryRecord("Заказ получен от курьера")
-	s.storage.SaveOrder(newOrder)
+	s.storage.Add(newOrder)
 }
 
 func (s *Pvz) getPackagingStrategy(packagingType string, additionalMembrana bool) PackagingStrategy {
@@ -75,18 +82,11 @@ func (s *Pvz) ApplyPackaging(order *order.Order, packagingType string, additiona
 	return nil
 }
 
-func (s *Pvz) ReturnToCourier(orderId int64) {
-	defer func() {
-		err := s.storage.SaveStorageToFile()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
+func (p *Pvz) ReturnToCourier(orderId int64) {
+	order, err := p.storage.GetByID(orderId)
 
-	order, exists := s.storage.FindOrderById(orderId)
-
-	if exists && order.IsExpired() {
-		s.storage.DeleteOrderById(orderId)
+	if err == nil && order.IsExpired() {
+		p.storage.Delete(orderId)
 	}
 }
 
@@ -102,17 +102,11 @@ func (s *Pvz) ServeRecipient(ordersIds []int64, recipientId int64, action string
 }
 
 func (p *Pvz) RefundOrdersById(orderIds []int64, recipientId int64) {
-	defer func() {
-		err := p.storage.SaveStorageToFile()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	orders := p.storage.FindRecipientOrdersByIds(orderIds, recipientId)
+	orders, _ := p.storage.GetByRecipientAndIds(recipientId, orderIds)
 
 	for _, order := range orders {
 		p.RefundOrder(order)
+		p.storage.Update(order)
 	}
 }
 
@@ -124,18 +118,13 @@ func (p *Pvz) RefundOrder(targetOrder *order.Order) {
 	}
 }
 
-func (s *Pvz) DeliverOrdersById(orderIds []int64, recipientId int64) {
-	defer func() {
-		err := s.storage.SaveStorageToFile()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
+func (p *Pvz) DeliverOrdersById(orderIds []int64, recipientId int64) {
 
-	orders := s.storage.FindRecipientOrdersByIds(orderIds, recipientId)
+	orders, _ := p.storage.GetByRecipientAndIds(recipientId, orderIds)
 
 	for _, order := range orders {
-		s.DeliverOrder(order)
+		p.DeliverOrder(order)
+		p.storage.Update(order)
 	}
 }
 
@@ -155,11 +144,10 @@ func (p *Pvz) DeliverOrder(targetOrder *order.Order) {
 	targetOrder.SetDeliveredDate(&now)
 	targetOrder.SetStatus(order.OrderStatusDelivered)
 	targetOrder.AddHistoryRecord("Заказ выдан клиенту")
-
 }
 
 func (s *Pvz) GetAllRefunds() {
-	orders := s.storage.GetOrders()
+	orders := s.storage.GetList()
 
 	var refundedOrders []*order.Order
 
@@ -175,7 +163,7 @@ func (s *Pvz) GetAllRefunds() {
 }
 
 func (s *Pvz) GetHistory() {
-	orders := s.storage.GetOrders()
+	orders := s.storage.GetList()
 
 	slices.SortFunc(orders, func(a *order.Order, b *order.Order) int {
 		bHistory := b.History

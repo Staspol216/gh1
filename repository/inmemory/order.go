@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,12 +11,12 @@ import (
 	"github.com/Staspol216/gh1/models/order"
 )
 
-type InMemoryOrderStorage struct {
+type InMemoryOrderRepo struct {
 	Orders []*order.Order `json:"orders"`
 	path   string
 }
 
-func New(path string) (*InMemoryOrderStorage, error) {
+func NewOrderRepo(path string) (*InMemoryOrderRepo, error) {
 	b, err := os.ReadFile(path)
 
 	if err != nil {
@@ -30,7 +31,7 @@ func New(path string) (*InMemoryOrderStorage, error) {
 		return nil, fmt.Errorf("json.Unmarshal: %w", err)
 	}
 
-	newStorage := &InMemoryOrderStorage{
+	newStorage := &InMemoryOrderRepo{
 		Orders: orders,
 		path:   path,
 	}
@@ -38,56 +39,68 @@ func New(path string) (*InMemoryOrderStorage, error) {
 	return newStorage, nil
 }
 
-func (p *InMemoryOrderStorage) GetOrders() []*order.Order {
+func (p *InMemoryOrderRepo) GetList() []*order.Order {
 	return p.Orders
 }
 
-func (p *InMemoryOrderStorage) addOrder(order *order.Order) *InMemoryOrderStorage {
-	p.Orders = append(p.Orders, order)
-	return p
-}
+func (p *InMemoryOrderRepo) Add(newOrder *order.Order) (int64, error) {
+	_, err := p.GetByID(newOrder.ID)
 
-func (p *InMemoryOrderStorage) SaveOrder(newOrder *order.Order) {
-	_, exists := p.FindOrderById(newOrder.ID)
-
-	if exists {
-		fmt.Println("Order already exists in the store")
-		return
+	if err == nil {
+		return 0, errors.New("order already exists in the store")
 	}
 
 	defer func() {
-		err := p.SaveStorageToFile()
+		err := p.saveStorageToFile()
 		if err != nil {
 			fmt.Println(err)
 		}
 	}()
 
-	p.addOrder(newOrder)
+	p.Orders = append(p.Orders, newOrder)
+
+	return newOrder.ID, nil
 }
 
-func (p *InMemoryOrderStorage) DeleteOrderById(orderId int64) {
+func (p *InMemoryOrderRepo) Update(updatedOrder *order.Order) {
+	err := p.saveStorageToFile()
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func (p *InMemoryOrderRepo) Delete(orderId int64) error {
+	defer func() {
+		err := p.saveStorageToFile()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+
 	p.Orders = slices.DeleteFunc(p.Orders, func(o *order.Order) bool {
 		return o.ID == orderId
 	})
+
+	return nil
 }
 
-func (p *InMemoryOrderStorage) FindOrderById(orderId int64) (*order.Order, bool) {
+func (p *InMemoryOrderRepo) GetByID(orderId int64) (*order.Order, error) {
 	for _, order := range p.Orders {
 		if order.ID == orderId {
-			return order, true
+			return order, nil
 		}
 	}
 
-	return nil, false
+	return nil, errors.New("order not found")
 }
 
-func (p *InMemoryOrderStorage) FindRecipientOrdersByIds(orderIds []int64, recipientId int64) []*order.Order {
+func (p *InMemoryOrderRepo) GetByRecipientAndIds(recipientId int64, orderIds []int64) ([]*order.Order, error) {
 	var orders = make([]*order.Order, 0, len(orderIds))
 
 	for _, orderId := range orderIds {
-		targetOrder, ok := p.FindOrderById(orderId)
+		targetOrder, err := p.GetByID(orderId)
 
-		if !ok {
+		if err != nil {
 			fmt.Printf("Order %d not founded in storage", orderId)
 			continue
 		}
@@ -100,10 +113,10 @@ func (p *InMemoryOrderStorage) FindRecipientOrdersByIds(orderIds []int64, recipi
 		orders = append(orders, targetOrder)
 	}
 
-	return orders
+	return orders, nil
 }
 
-func (p *InMemoryOrderStorage) SaveStorageToFile() error {
+func (p *InMemoryOrderRepo) saveStorageToFile() error {
 	f, err := os.OpenFile(p.path, os.O_RDWR|os.O_TRUNC, 0666)
 
 	if err != nil {
