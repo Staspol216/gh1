@@ -35,10 +35,11 @@ type Config struct {
 type Storager interface {
 	GetList() []*order.Order
 	Add(newOrder *order.Order) (int64, error)
+	AddHistoryRecord(record *order.OrderRecord, orderId int64) (int64, error)
 	Delete(orderId int64) error
-	Update(updatedOrder *order.Order)
+	Update(updatedOrder *order.Order) error
 	GetByID(orderId int64) (*order.Order, error)
-	GetByRecipientAndIds(recipientId int64, orderIds []int64) ([]*order.Order, error)
+	GetByRecipientId(recipientId int64) ([]*order.Order, error)
 }
 
 func NewStorage(cfg *Config) (Storager, error) {

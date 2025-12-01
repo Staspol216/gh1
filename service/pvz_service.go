@@ -1,7 +1,6 @@
 package Serivces
 
 import (
-	"fmt"
 	"log"
 	"slices"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/Staspol216/gh1/models/order"
 	"github.com/Staspol216/gh1/storage"
 	"github.com/Staspol216/gh1/utils"
+	"github.com/davecgh/go-spew/spew"
 )
 
 type Action int
@@ -37,6 +37,10 @@ func New(storage storage.Storager) *Pvz {
 	}
 }
 
+func (s *Pvz) GetOrders() []*order.Order {
+	return s.storage.GetList()
+}
+
 func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool) {
 	if isPast := utils.IsPastDate(payload.ExpirationDate); isPast {
 		log.Println("expiration date can't be in the past")
@@ -46,8 +50,17 @@ func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string
 	newOrder := order.New(payload)
 	s.ApplyPackaging(newOrder, packagingType, additionalMembrana)
 	newOrder.SetStatus(order.OrderStatusReceived)
-	newOrder.AddHistoryRecord("Заказ получен от курьера")
-	s.storage.Add(newOrder)
+	newHistoryRecord := &order.OrderRecord{
+		Timestamp:   time.Now(),
+		Status:      order.OrderStatusReceived,
+		Description: "Заказ получен от курьера",
+	}
+	orderId, err := s.storage.Add(newOrder)
+	if err != nil {
+		return
+	}
+	s.storage.AddHistoryRecord(newHistoryRecord, orderId)
+	log.Println("order was succesfully added to the store")
 }
 
 func (s *Pvz) getPackagingStrategy(packagingType string, additionalMembrana bool) PackagingStrategy {
@@ -61,7 +74,7 @@ func (s *Pvz) getPackagingStrategy(packagingType string, additionalMembrana bool
 	case "membrana":
 		Strategy = &PackagingMembranaStrategy{}
 	default:
-		fmt.Print("Unknown package type")
+		log.Print("Unknown package type")
 	}
 
 	if additionalMembrana && packagingType != "membrana" {
@@ -87,23 +100,34 @@ func (p *Pvz) ReturnToCourier(orderId int64) {
 
 	if err == nil && order.IsExpired() {
 		p.storage.Delete(orderId)
+	} else {
+		log.Println("order cannot be returned to courier as it's not expired")
 	}
 }
 
-func (s *Pvz) ServeRecipient(ordersIds []int64, recipientId int64, action string) {
+func (p *Pvz) ServeRecipient(ordersIds []int64, recipientId int64, action string) {
+
+	recipientOrders, _ := p.storage.GetByRecipientId(recipientId)
+
+	var targetOrders []*order.Order
+
+	for _, order := range recipientOrders {
+		if slices.Contains(ordersIds, order.ID) {
+			targetOrders = append(targetOrders, order)
+		}
+	}
+
 	switch action {
 	case Deliver.String():
-		s.DeliverOrdersById(ordersIds, recipientId)
+		p.DeliverOrders(targetOrders)
 	case Refund.String():
-		s.RefundOrdersById(ordersIds, recipientId)
+		p.RefundOrders(targetOrders)
 	default:
-		fmt.Println("Unknown action for ServeRecipient command")
+		log.Println("Unknown action for ServeRecipient command")
 	}
 }
 
-func (p *Pvz) RefundOrdersById(orderIds []int64, recipientId int64) {
-	orders, _ := p.storage.GetByRecipientAndIds(recipientId, orderIds)
-
+func (p *Pvz) RefundOrders(orders []*order.Order) {
 	for _, order := range orders {
 		p.RefundOrder(order)
 		p.storage.Update(order)
@@ -111,17 +135,21 @@ func (p *Pvz) RefundOrdersById(orderIds []int64, recipientId int64) {
 }
 
 func (p *Pvz) RefundOrder(targetOrder *order.Order) {
-	if targetOrder.CanBeRefunded() {
-		targetOrder.RefundByRecipient()
+	if targetOrder.IsDelivered() && targetOrder.CanBeRefunded() {
+		targetOrder.Refund()
+		targetOrder.SetStatus(order.OrderStatusRefunded)
+		newOrderRecord := &order.OrderRecord{
+			Timestamp:   time.Now(),
+			Status:      order.OrderStatusRefunded,
+			Description: "Заказ возвращен от клиента",
+		}
+		p.storage.AddHistoryRecord(newOrderRecord, targetOrder.ID)
 	} else {
-		fmt.Printf("Order %d can not be refunded to recipient because refund time has expired", targetOrder.ID)
+		log.Printf("Order %d can not be refunded to recipient because refund time has expired or already refunded by recipient", targetOrder.ID)
 	}
 }
 
-func (p *Pvz) DeliverOrdersById(orderIds []int64, recipientId int64) {
-
-	orders, _ := p.storage.GetByRecipientAndIds(recipientId, orderIds)
-
+func (p *Pvz) DeliverOrders(orders []*order.Order) {
 	for _, order := range orders {
 		p.DeliverOrder(order)
 		p.storage.Update(order)
@@ -129,21 +157,30 @@ func (p *Pvz) DeliverOrdersById(orderIds []int64, recipientId int64) {
 }
 
 func (p *Pvz) DeliverOrder(targetOrder *order.Order) {
-
 	if targetOrder.IsExpired() {
 		targetOrder.SetStatus(order.OrderStatusExpired)
-		targetOrder.AddHistoryRecord("Срок хранения истек")
-		fmt.Printf("Order %d can't be delivered because the storage has expired", targetOrder.ID)
+		newOrderRecord := &order.OrderRecord{
+			Timestamp:   time.Now(),
+			Status:      order.OrderStatusExpired,
+			Description: "Срок хранения истек",
+		}
+		p.storage.AddHistoryRecord(newOrderRecord, targetOrder.ID)
+		log.Printf("Order %d can't be delivered because the storage has expired", targetOrder.ID)
 	}
 
-	if !targetOrder.IsRecievedByCourier() {
-		fmt.Printf("Order %d must be recieved from courier", targetOrder.ID)
+	if !targetOrder.IsRecieved() {
+		log.Printf("Order %d must be recieved from courier", targetOrder.ID)
 	}
 
 	now := time.Now()
 	targetOrder.SetDeliveredDate(&now)
 	targetOrder.SetStatus(order.OrderStatusDelivered)
-	targetOrder.AddHistoryRecord("Заказ выдан клиенту")
+	newOrderRecord := &order.OrderRecord{
+		Timestamp:   time.Now(),
+		Status:      order.OrderStatusDelivered,
+		Description: "Заказ выдан клиенту",
+	}
+	p.storage.AddHistoryRecord(newOrderRecord, targetOrder.ID)
 }
 
 func (s *Pvz) GetAllRefunds() {
@@ -157,21 +194,24 @@ func (s *Pvz) GetAllRefunds() {
 		}
 	}
 
-	for _, order := range refundedOrders {
-		fmt.Printf("%+v\n", *order)
-	}
+	spew.Dump(refundedOrders)
 }
 
 func (s *Pvz) GetHistory() {
 	orders := s.storage.GetList()
 
 	slices.SortFunc(orders, func(a *order.Order, b *order.Order) int {
-		bHistory := b.History
-		aHistory := a.History
-		return bHistory[len(bHistory)-1].Timestamp.Compare(aHistory[len(aHistory)-1].Timestamp)
+		var aT, bT time.Time
+
+		if len(a.History) > 0 {
+			aT = a.History[len(a.History)-1].Timestamp
+		}
+		if len(b.History) > 0 {
+			bT = b.History[len(b.History)-1].Timestamp
+		}
+
+		return bT.Compare(aT)
 	})
 
-	for _, order := range orders {
-		fmt.Printf("%+v\n", *order)
-	}
+	spew.Dump(orders)
 }

@@ -19,23 +19,42 @@ type orderDTO struct {
 	Worth          float64           `db:"worth"`
 }
 
-func transformDtoToModel(o *orderDTO) *order.Order {
-	oRepo := &order.Order{
+func transformOrderDtoToModel(o *orderDTO) *order.Order {
+	orderModel := &order.Order{
 		ID:             o.ID,
 		RecipientID:    o.RecipientID,
 		ExpirationDate: o.ExpirationDate,
 		Status:         o.Status,
+		History:        make([]order.OrderRecord, 0),
 		Weight:         o.Weight,
 		Worth:          o.Worth,
 	}
 	if o.DeliveredDate.Valid {
-		oRepo.DeliveredDate = &o.DeliveredDate.Time
+		orderModel.DeliveredDate = &o.DeliveredDate.Time
 	}
 	if o.RefundedDate.Valid {
-		oRepo.RefundedDate = &o.RefundedDate.Time
+		orderModel.RefundedDate = &o.RefundedDate.Time
 	}
 	if o.ReturnedDate.Valid {
-		oRepo.ReturnedDate = &o.ReturnedDate.Time
+		orderModel.ReturnedDate = &o.ReturnedDate.Time
 	}
-	return oRepo
+	return orderModel
+}
+
+type orderRecordDTO struct {
+	ID          int64             `db:"id"`
+	OrderID     int64             `db:"order_id"`
+	Timestamp   time.Time         `db:"timestamp"`
+	Status      order.OrderStatus `db:"status"`
+	Description string            `db:"description"`
+}
+
+func transformOrderRecordDtoToModel(record *orderRecordDTO) *order.OrderRecord {
+	orderRecordModel := &order.OrderRecord{
+		Timestamp:   record.Timestamp,
+		Status:      record.Status,
+		Description: record.Description,
+	}
+
+	return orderRecordModel
 }

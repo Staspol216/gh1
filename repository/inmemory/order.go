@@ -62,11 +62,17 @@ func (p *InMemoryOrderRepo) Add(newOrder *order.Order) (int64, error) {
 	return newOrder.ID, nil
 }
 
-func (p *InMemoryOrderRepo) Update(updatedOrder *order.Order) {
+func (r *InMemoryOrderRepo) AddHistoryRecord(record *order.OrderRecord, orderId int64) (int64, error) {
+	return 0, nil
+}
+
+func (p *InMemoryOrderRepo) Update(updatedOrder *order.Order) error {
 	err := p.saveStorageToFile()
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	return nil
 }
 
 func (p *InMemoryOrderRepo) Delete(orderId int64) error {
@@ -94,26 +100,17 @@ func (p *InMemoryOrderRepo) GetByID(orderId int64) (*order.Order, error) {
 	return nil, errors.New("order not found")
 }
 
-func (p *InMemoryOrderRepo) GetByRecipientAndIds(recipientId int64, orderIds []int64) ([]*order.Order, error) {
-	var orders = make([]*order.Order, 0, len(orderIds))
+func (p *InMemoryOrderRepo) GetByRecipientId(recipientId int64) ([]*order.Order, error) {
+	var recipientOrders []*order.Order
 
-	for _, orderId := range orderIds {
-		targetOrder, err := p.GetByID(orderId)
+	for _, order := range p.Orders {
 
-		if err != nil {
-			fmt.Printf("Order %d not founded in storage", orderId)
-			continue
+		if order.RecipientID == recipientId {
+			recipientOrders = append(recipientOrders, order)
 		}
-
-		if targetOrder.RecipientID != recipientId {
-			fmt.Printf("Order %d does not belong to the buyer %d, it can't be delivered", orderId, recipientId)
-			continue
-		}
-
-		orders = append(orders, targetOrder)
 	}
 
-	return orders, nil
+	return recipientOrders, nil
 }
 
 func (p *InMemoryOrderRepo) saveStorageToFile() error {

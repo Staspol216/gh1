@@ -44,7 +44,7 @@ func ServeRecipient(args []string) (OrderIds, int64, string) {
 
 	var (
 		recipientId = flagSet.Int64("recipient", 0, "recipient id")
-		action      = flagSet.String("action", "", "recipient id")
+		action      = flagSet.String("action", "", "action")
 	)
 
 	err := flagSet.Parse(args)

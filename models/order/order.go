@@ -57,31 +57,24 @@ func (o *Order) IsRefunded() bool {
 	return o.Status == OrderStatusRefunded
 }
 
+func (o *Order) IsDelivered() bool {
+	return o.Status == OrderStatusDelivered
+}
+
+func (o *Order) IsRecieved() bool {
+	return o.Status == OrderStatusReceived
+}
+
 func (o *Order) CanBeRefunded() bool {
-	refundExpirationDate := o.DeliveredDate.AddDate(0, 0, 2)
-	itCanBeRefunded := o.DeliveredDate.Compare(refundExpirationDate) == -1
-	return o.Status == OrderStatusDelivered && itCanBeRefunded
+	const DAYS_FOR_REFUNDING = 2
+	refundExpirationDate := o.DeliveredDate.AddDate(0, 0, DAYS_FOR_REFUNDING)
+	canBeRefunded := o.DeliveredDate.Compare(refundExpirationDate) == -1
+	return canBeRefunded
 }
 
-func (o *Order) AddHistoryRecord(description string) {
-	orderRecord := &OrderRecord{
-		Timestamp:   time.Now(),
-		Status:      o.Status,
-		Description: description,
-	}
-	o.History = append(o.History, *orderRecord)
-}
-
-func (o *Order) RefundByRecipient() {
+func (o *Order) Refund() {
 	now := time.Now()
 	o.RefundedDate = &now
-
-	o.SetStatus(OrderStatusRefunded)
-	o.AddHistoryRecord("Возвращен клиентом")
-}
-
-func (o *Order) IsRecievedByCourier() bool {
-	return o.Status == OrderStatusReceived
 }
 
 func (o *Order) IsExpired() bool {
@@ -89,12 +82,10 @@ func (o *Order) IsExpired() bool {
 	return res == -1
 }
 
-func (o *Order) SetStatus(status OrderStatus) *Order {
+func (o *Order) SetStatus(status OrderStatus) {
 	o.Status = status
-	return o
 }
 
-func (o *Order) SetDeliveredDate(date *time.Time) *Order {
+func (o *Order) SetDeliveredDate(date *time.Time) {
 	o.DeliveredDate = date
-	return o
 }

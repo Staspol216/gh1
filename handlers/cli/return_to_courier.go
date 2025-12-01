@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-func ReturnFromCourier(args []string) int64 {
+func ReturnToCourier(args []string) int64 {
 	const argsCount = 1
 
 	flagSet := flag.NewFlagSet("command", flag.ContinueOnError)

@@ -34,7 +34,8 @@ func AcceptFromCourier(args []string) *OrderPayload {
 	err := flagSet.Parse(args)
 
 	if err != nil {
-		log.Fatalf("flagSet.Parse: %s", err)
+		log.Printf("flagSet.Parse: %s", err)
+		return nil
 	}
 
 	required := []string{

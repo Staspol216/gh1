@@ -18,6 +18,7 @@ type Pvz interface {
 	ServeRecipient(orderIds []int64, recipientId int64, action string)
 	GetAllRefunds()
 	GetHistory()
+	GetOrders() []*order.Order
 }
 type App struct {
 	pvz Pvz
@@ -63,10 +64,11 @@ func (app *App) handleCommand(v string, args []string) {
 	case command.Help.String():
 		cli.Help()
 	case command.AcceptFromCourier.String():
-		cliPayload := cli.AcceptFromCourier(args)
-		app.pvz.AcceptFromCourier(ToOrderParams(cliPayload), *cliPayload.Packaging, *cliPayload.MembranaIncluded)
-	case command.ReturnFromCourier.String():
-		orderId := cli.ReturnFromCourier(args)
+		if cliPayload := cli.AcceptFromCourier(args); cliPayload != nil {
+			app.pvz.AcceptFromCourier(ToOrderParams(cliPayload), *cliPayload.Packaging, *cliPayload.MembranaIncluded)
+		}
+	case command.ReturnToCourier.String():
+		orderId := cli.ReturnToCourier(args)
 		app.pvz.ReturnToCourier(orderId)
 	case command.ServeRecipient.String():
 		orderIds, recipientId, action := cli.ServeRecipient(args)

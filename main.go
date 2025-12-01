@@ -24,6 +24,7 @@ func main() {
 
 	context, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	postgresConfig := &storage.Config{
 		StorageType: storage.StorageTypePostgres,
 		Postgres: &storage.PostgresConfig{

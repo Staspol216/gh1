@@ -7,7 +7,7 @@ const (
 	Exit
 	Help
 	AcceptFromCourier
-	ReturnFromCourier
+	ReturnToCourier
 	ServeRecipient
 	GetAllRefunds
 	GetHistory
@@ -18,7 +18,7 @@ var CommandName = map[Command]string{
 	Exit:              "exit",
 	Help:              "help",
 	AcceptFromCourier: "acceptFromCourier",
-	ReturnFromCourier: "returnFromCourier",
+	ReturnToCourier:   "ReturnToCourier",
 	ServeRecipient:    "serveRecipient",
 	GetAllRefunds:     "getAllRefunds",
 	GetHistory:        "getHistory",
