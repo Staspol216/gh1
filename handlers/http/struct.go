@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/Staspol216/gh1/models/order"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/render"
 )
 
@@ -42,6 +41,15 @@ func ErrInvalidRequest(err error) render.Renderer {
 	}
 }
 
+func ErrInternal(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: 500,
+		StatusText:     "Internal error",
+		ErrorText:      err.Error(),
+	}
+}
+
 var ErrNotFound = &ErrResponse{HTTPStatusCode: 404, StatusText: "Resource not found."}
 
 // Order Response
@@ -57,16 +65,28 @@ func (rd *OrderResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// Order Request
+func NewOrdersListResponse(orders []*order.Order) []render.Renderer {
+	list := []render.Renderer{}
+	for _, order := range orders {
+		list = append(list, NewOrderResponse(order))
+	}
+	return list
+}
 
-type OrderRequest struct {
+func NewOrderResponse(o *order.Order) *OrderResponse {
+	response := &OrderResponse{Order: o}
+	return response
+}
+
+// OrderCreateRequest
+
+type OrderCreateRequest struct {
 	Order            *order.OrderParams `json:"order"`
 	PackagingType    string             `json:"packagingType"`
 	MembranaIncluded bool               `json:"membranaIncluded"`
 }
 
-func (a *OrderRequest) Bind(r *http.Request) error {
-	spew.Dump(a.Order)
+func (a *OrderCreateRequest) Bind(r *http.Request) error {
 	if a.Order == nil {
 		return errors.New("missing required Order fields")
 	}
@@ -74,7 +94,51 @@ func (a *OrderRequest) Bind(r *http.Request) error {
 	return nil
 }
 
-// Order ID
+// OrderCreateRequest
+
+type OrderUpdateRequest struct {
+	OrderIDs    []int64 `json:"order_ids"`
+	RecipientID int64   `json:"recipient_id"`
+	Action      string  `json:"action"`
+}
+
+func (a *OrderUpdateRequest) Bind(r *http.Request) error {
+	return nil
+}
+
+type OrderUpdateResponse struct{}
+
+func NewOrderUpdateResponse() *OrderUpdateResponse {
+	return &OrderUpdateResponse{}
+}
+
+func (rd *OrderUpdateResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	render.Status(r, http.StatusOK)
+	return nil
+}
+
+// OrderDeletedRequest
+
+type OrderDeletedRequest struct {
+	OrderID int64 `json:"order_id"`
+}
+
+func (a *OrderDeletedRequest) Bind(r *http.Request) error {
+	return nil
+}
+
+type OrderDeletedResponse struct{}
+
+func (rd *OrderDeletedResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	render.Status(r, http.StatusOK)
+	return nil
+}
+
+func NewOrderDeletedResponse() *OrderDeletedResponse {
+	return &OrderDeletedResponse{}
+}
+
+// OrderIDResponse
 
 type OrderIDResponse struct {
 	OrderID int64 `json:"order_id"`
@@ -83,4 +147,8 @@ type OrderIDResponse struct {
 func (rd *OrderIDResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	render.Status(r, http.StatusCreated)
 	return nil
+}
+
+func NewOrderIDResponse(id int64) *OrderIDResponse {
+	return &OrderIDResponse{OrderID: id}
 }

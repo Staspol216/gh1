@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Staspol216/gh1/models/order"
 	Serivces "github.com/Staspol216/gh1/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -36,9 +35,21 @@ func (h *HTTPHandler) Serve() {
 	})
 
 	r.Route("/orders", func(r chi.Router) {
-		r.Get("/", h.ListOrders) // GET /articles
+		r.Get("/", h.ListOrders)
 
-		r.Post("/", h.CreateOrder) // POST /articles
+		r.Post("/", h.CreateOrder)
+
+		r.Patch("/", h.UpdateOrders)
+
+		r.Delete("/", h.DeleteOrder)
+
+		r.Route("/refunds", func(r chi.Router) {
+			r.Get("/", h.ListRefundedOrders)
+		})
+	})
+
+	r.Route("/orders-history", func(r chi.Router) {
+		r.Get("/", h.ListOrders)
 	})
 
 	host := os.Getenv("BACKEND_HOST")
@@ -59,14 +70,31 @@ func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) {
+	orders := h.pvz.GetHistory()
+	err := render.RenderList(w, r, NewOrdersListResponse(orders))
+	if err != nil {
+		render.Render(w, r, ErrRender(err))
+	}
+}
+
+func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request) {
+	orders := h.pvz.GetAllRefunds()
+	err := render.RenderList(w, r, NewOrdersListResponse(orders))
+	if err != nil {
+		render.Render(w, r, ErrRender(err))
+	}
+}
+
 func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	data := &OrderRequest{}
+	data := &OrderCreateRequest{}
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	orderId := h.pvz.AcceptFromCourier(data.Order, data.PackagingType, data.MembranaIncluded)
+
 	err := render.Render(w, r, NewOrderIDResponse(orderId))
 
 	if err != nil {
@@ -74,19 +102,43 @@ func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func NewOrderIDResponse(id int64) *OrderIDResponse {
-	return &OrderIDResponse{OrderID: id}
-}
-
-func NewOrdersListResponse(orders []*order.Order) []render.Renderer {
-	list := []render.Renderer{}
-	for _, order := range orders {
-		list = append(list, NewOrderResponse(order))
+func (h *HTTPHandler) UpdateOrders(w http.ResponseWriter, r *http.Request) {
+	data := &OrderUpdateRequest{}
+	if err := render.Bind(r, data); err != nil {
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
 	}
-	return list
+
+	err := h.pvz.ServeRecipient(data.OrderIDs, data.RecipientID, data.Action)
+
+	if err != nil {
+		render.Render(w, r, ErrInternal(err))
+	}
+
+	renderErr := render.Render(w, r, NewOrderUpdateResponse())
+
+	if renderErr != nil {
+		render.Render(w, r, ErrRender(err))
+	}
 }
 
-func NewOrderResponse(o *order.Order) *OrderResponse {
-	response := &OrderResponse{Order: o}
-	return response
+func (h *HTTPHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
+	data := &OrderDeletedRequest{}
+
+	if err := render.Bind(r, data); err != nil {
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	err := h.pvz.ReturnToCourier(data.OrderID)
+
+	if err != nil {
+		render.Render(w, r, ErrInternal(err))
+	}
+
+	renderErr := render.Render(w, r, NewOrderDeletedResponse())
+
+	if renderErr != nil {
+		render.Render(w, r, ErrRender(err))
+	}
 }

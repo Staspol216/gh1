@@ -1,6 +1,7 @@
 package Serivces
 
 import (
+	"errors"
 	"log"
 	"slices"
 	"time"
@@ -8,7 +9,6 @@ import (
 	"github.com/Staspol216/gh1/models/order"
 	"github.com/Staspol216/gh1/storage"
 	"github.com/Staspol216/gh1/utils"
-	"github.com/davecgh/go-spew/spew"
 )
 
 type Action int
@@ -60,6 +60,7 @@ func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string
 		return 0
 	}
 	s.storage.AddHistoryRecord(newHistoryRecord, orderId)
+
 	log.Println("order was succesfully added to the store")
 
 	return orderId
@@ -97,17 +98,18 @@ func (s *Pvz) ApplyPackaging(order *order.Order, packagingType string, additiona
 	return nil
 }
 
-func (p *Pvz) ReturnToCourier(orderId int64) {
+func (p *Pvz) ReturnToCourier(orderId int64) error {
 	order, err := p.storage.GetByID(orderId)
 
 	if err == nil && order.IsExpired() {
 		p.storage.Delete(orderId)
 	} else {
-		log.Println("order cannot be returned to courier as it's not expired")
+		return errors.New("order cannot be returned to courier as it's not expired")
 	}
+	return nil
 }
 
-func (p *Pvz) ServeRecipient(ordersIds []int64, recipientId int64, action string) {
+func (p *Pvz) ServeRecipient(ordersIds []int64, recipientId int64, action string) error {
 
 	recipientOrders, _ := p.storage.GetByRecipientId(recipientId)
 
@@ -125,8 +127,10 @@ func (p *Pvz) ServeRecipient(ordersIds []int64, recipientId int64, action string
 	case Refund.String():
 		p.RefundOrders(targetOrders)
 	default:
-		log.Println("Unknown action for ServeRecipient command")
+		return errors.New("unknown action for ServeRecipient command")
 	}
+
+	return nil
 }
 
 func (p *Pvz) RefundOrders(orders []*order.Order) {
@@ -196,7 +200,6 @@ func (s *Pvz) GetAllRefunds() []*order.Order {
 		}
 	}
 
-	spew.Dump(refundedOrders)
 	return orders
 }
 
@@ -216,6 +219,5 @@ func (s *Pvz) GetHistory() []*order.Order {
 		return bT.Compare(aT)
 	})
 
-	spew.Dump(orders)
 	return orders
 }
