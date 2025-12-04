@@ -1,0 +1,11 @@
+{
+  "order": {
+    "order_id": 234,
+    "recipient_id": 216,
+    "expiration_date": "2025-12-16T00:00:00Z",
+    "weight": 6.33,
+    "worth": 4500
+  },
+  "packagingType": "box",
+  "membranaIncluded": true
+}

@@ -41,10 +41,10 @@ func (s *Pvz) GetOrders() []*order.Order {
 	return s.storage.GetList()
 }
 
-func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool) {
+func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool) int64 {
 	if isPast := utils.IsPastDate(payload.ExpirationDate); isPast {
 		log.Println("expiration date can't be in the past")
-		return
+		return 0
 	}
 
 	newOrder := order.New(payload)
@@ -57,10 +57,12 @@ func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string
 	}
 	orderId, err := s.storage.Add(newOrder)
 	if err != nil {
-		return
+		return 0
 	}
 	s.storage.AddHistoryRecord(newHistoryRecord, orderId)
 	log.Println("order was succesfully added to the store")
+
+	return orderId
 }
 
 func (s *Pvz) getPackagingStrategy(packagingType string, additionalMembrana bool) PackagingStrategy {
@@ -183,7 +185,7 @@ func (p *Pvz) DeliverOrder(targetOrder *order.Order) {
 	p.storage.AddHistoryRecord(newOrderRecord, targetOrder.ID)
 }
 
-func (s *Pvz) GetAllRefunds() {
+func (s *Pvz) GetAllRefunds() []*order.Order {
 	orders := s.storage.GetList()
 
 	var refundedOrders []*order.Order
@@ -195,9 +197,10 @@ func (s *Pvz) GetAllRefunds() {
 	}
 
 	spew.Dump(refundedOrders)
+	return orders
 }
 
-func (s *Pvz) GetHistory() {
+func (s *Pvz) GetHistory() []*order.Order {
 	orders := s.storage.GetList()
 
 	slices.SortFunc(orders, func(a *order.Order, b *order.Order) int {
@@ -214,4 +217,5 @@ func (s *Pvz) GetHistory() {
 	})
 
 	spew.Dump(orders)
+	return orders
 }

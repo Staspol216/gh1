@@ -4,11 +4,16 @@ import (
 	"context"
 	"log"
 
-	pvzApp "github.com/Staspol216/gh1/app"
+	"github.com/Staspol216/gh1/handlers/cli"
+	"github.com/Staspol216/gh1/handlers/http"
 	PvzSerivce "github.com/Staspol216/gh1/service"
 	"github.com/Staspol216/gh1/storage"
 	"github.com/joho/godotenv"
 )
+
+type Handler interface {
+	Serve()
+}
 
 func main() {
 	// config := &storage.Config{
@@ -17,6 +22,8 @@ func main() {
 	// 		Path: "data/pvz.json",
 	// 	},
 	// }
+
+	isHTTP := true
 
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file loaded")
@@ -40,7 +47,13 @@ func main() {
 
 	pvzService := PvzSerivce.New(orderStorage)
 
-	app := pvzApp.New(pvzService)
+	var handler Handler
 
-	app.Run()
+	if isHTTP {
+		handler = http.New(pvzService)
+	} else {
+		handler = cli.New(pvzService)
+	}
+
+	handler.Serve()
 }

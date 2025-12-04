@@ -34,11 +34,11 @@ type OrderRecord struct {
 }
 
 type OrderParams struct {
-	OrderId        int64
-	RecipientId    int64
-	ExpirationDate time.Time
-	Weight         float64
-	Worth          float64
+	OrderId        int64     `json:"order_id"`
+	RecipientId    int64     `json:"recipient_id"`
+	ExpirationDate time.Time `json:"expiration_date"`
+	Weight         float64   `json:"weight"`
+	Worth          float64   `json:"worth"`
 }
 
 func New(data *OrderParams) *Order {

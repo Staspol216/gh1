@@ -1,4 +1,4 @@
-package pvzApp
+package cli
 
 import (
 	"bufio"
@@ -7,30 +7,22 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Staspol216/gh1/handlers/cli"
 	"github.com/Staspol216/gh1/handlers/cli/command"
 	"github.com/Staspol216/gh1/models/order"
+	Serivces "github.com/Staspol216/gh1/service"
 )
 
-type Pvz interface {
-	AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool)
-	ReturnToCourier(id int64)
-	ServeRecipient(orderIds []int64, recipientId int64, action string)
-	GetAllRefunds()
-	GetHistory()
-	GetOrders() []*order.Order
-}
-type App struct {
-	pvz Pvz
+type CLIHandler struct {
+	pvz *Serivces.Pvz
 }
 
-func New(pvz Pvz) *App {
-	return &App{
+func New(pvz *Serivces.Pvz) *CLIHandler {
+	return &CLIHandler{
 		pvz,
 	}
 }
 
-func (app *App) Run() {
+func (app *CLIHandler) Serve() {
 	for {
 		fmt.Printf("> ")
 
@@ -48,7 +40,7 @@ func (app *App) Run() {
 	}
 }
 
-func (c *App) getCommandAndArgs(input string) (string, []string, bool) {
+func (c *CLIHandler) getCommandAndArgs(input string) (string, []string, bool) {
 	fields := strings.Fields(input)
 
 	if len(fields) == 0 {
@@ -57,34 +49,34 @@ func (c *App) getCommandAndArgs(input string) (string, []string, bool) {
 	return fields[0], fields[1:], true
 }
 
-func (app *App) handleCommand(v string, args []string) {
+func (app *CLIHandler) handleCommand(v string, args []string) {
 	switch v {
 	case command.Exit.String():
-		cli.Exit()
+		Exit()
 	case command.Help.String():
-		cli.Help()
+		Help()
 	case command.AcceptFromCourier.String():
-		if cliPayload := cli.AcceptFromCourier(args); cliPayload != nil {
+		if cliPayload := AcceptFromCourier(args); cliPayload != nil {
 			app.pvz.AcceptFromCourier(ToOrderParams(cliPayload), *cliPayload.Packaging, *cliPayload.MembranaIncluded)
 		}
 	case command.ReturnToCourier.String():
-		orderId := cli.ReturnToCourier(args)
+		orderId := ReturnToCourier(args)
 		app.pvz.ReturnToCourier(orderId)
 	case command.ServeRecipient.String():
-		orderIds, recipientId, action := cli.ServeRecipient(args)
+		orderIds, recipientId, action := ServeRecipient(args)
 		app.pvz.ServeRecipient(orderIds, recipientId, action)
 	case command.GetAllRefunds.String():
-		cli.GetAllRefunds(args)
+		GetAllRefunds(args)
 		app.pvz.GetAllRefunds()
 	case command.GetHistory.String():
-		cli.GetHistory(args)
+		GetHistory(args)
 		app.pvz.GetHistory()
 	default:
-		cli.Unknown()
+		Unknown()
 	}
 }
 
-func ToOrderParams(p *cli.OrderPayload) *order.OrderParams {
+func ToOrderParams(p *OrderPayload) *order.OrderParams {
 	return &order.OrderParams{
 		OrderId:        *p.OrderId,
 		RecipientId:    *p.RecipientId,
