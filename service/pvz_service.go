@@ -41,6 +41,16 @@ func (s *Pvz) GetOrders() []*order.Order {
 	return s.storage.GetList()
 }
 
+func (s *Pvz) GetOrderByID(orderId int64) (*order.Order, error) {
+	order, err := s.storage.GetByID(orderId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return order, nil
+}
+
 func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool) int64 {
 	if isPast := utils.IsPastDate(payload.ExpirationDate); isPast {
 		log.Println("expiration date can't be in the past")
@@ -200,7 +210,7 @@ func (s *Pvz) GetAllRefunds() []*order.Order {
 		}
 	}
 
-	return orders
+	return refundedOrders
 }
 
 func (s *Pvz) GetHistory() []*order.Order {
