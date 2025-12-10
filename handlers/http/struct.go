@@ -119,14 +119,6 @@ func (rd *OrderUpdateResponse) Render(w http.ResponseWriter, r *http.Request) er
 
 // OrderDeletedRequest
 
-type OrderDeletedRequest struct {
-	OrderID int64 `json:"order_id"`
-}
-
-func (a *OrderDeletedRequest) Bind(r *http.Request) error {
-	return nil
-}
-
 type OrderDeletedResponse struct{}
 
 func (rd *OrderDeletedResponse) Render(w http.ResponseWriter, r *http.Request) error {

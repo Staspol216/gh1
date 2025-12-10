@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Staspol216/gh1/handlers/cli/command"
+	common "github.com/Staspol216/gh1/models"
 	"github.com/Staspol216/gh1/models/order"
 	Serivces "github.com/Staspol216/gh1/service"
 )
@@ -50,13 +51,18 @@ func (c *CLIHandler) getCommandAndArgs(input string) (string, []string, bool) {
 }
 
 func (app *CLIHandler) handleCommand(v string, args []string) {
+	pagination := &common.Pagination{
+		Offset: 0,
+		Limit:  1000,
+	}
 	switch v {
 	case command.Exit.String():
 		Exit()
 	case command.Help.String():
 		Help()
 	case command.AcceptFromCourier.String():
-		if cliPayload := AcceptFromCourier(args); cliPayload != nil {
+		cliPayload := AcceptFromCourier(args)
+		if cliPayload != nil {
 			app.pvz.AcceptFromCourier(ToOrderParams(cliPayload), *cliPayload.Packaging, *cliPayload.MembranaIncluded)
 		}
 	case command.ReturnToCourier.String():
@@ -67,10 +73,10 @@ func (app *CLIHandler) handleCommand(v string, args []string) {
 		app.pvz.ServeRecipient(orderIds, recipientId, action)
 	case command.GetAllRefunds.String():
 		GetAllRefunds(args)
-		app.pvz.GetAllRefunds()
+		app.pvz.GetAllRefunds(pagination)
 	case command.GetHistory.String():
 		GetHistory(args)
-		app.pvz.GetHistory()
+		app.pvz.GetHistory(pagination)
 	default:
 		Unknown()
 	}

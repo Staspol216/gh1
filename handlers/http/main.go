@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	common "github.com/Staspol216/gh1/models"
 	Serivces "github.com/Staspol216/gh1/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -40,7 +41,7 @@ func (h *HTTPHandler) Serve() {
 	})
 
 	r.Route("/orders", func(r chi.Router) {
-		r.Get("/", h.ListOrders)
+		r.With(paginate).Get("/", h.ListOrders)
 
 		r.Post("/", h.CreateOrder)
 
@@ -77,6 +78,8 @@ type ctxKey string
 
 const (
 	ctxKeyOrderID ctxKey = "orderID"
+	ctxKeyOffset  ctxKey = "offset"
+	ctxKeyLimit   ctxKey = "limit"
 )
 
 func OrderCtx(next http.Handler) http.Handler {
@@ -102,8 +105,47 @@ func OrderCtx(next http.Handler) http.Handler {
 	})
 }
 
+func paginate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const (
+			defaultOffset int64 = 0
+			defaultLimit  int64 = 20
+			maxLimit      int64 = 100
+		)
+
+		q := r.URL.Query()
+		offset := defaultOffset
+		limit := defaultLimit
+
+		if os := strings.TrimSpace(q.Get("offset")); os != "" {
+			if v, err := strconv.ParseInt(os, 10, 64); err == nil && v >= 0 {
+				offset = v
+			}
+		}
+
+		if ls := strings.TrimSpace(q.Get("limit")); ls != "" {
+			if v, err := strconv.ParseInt(ls, 10, 64); err == nil && v > 0 {
+				limit = min(v, maxLimit)
+			}
+		}
+
+		ctx := context.WithValue(r.Context(), ctxKeyOffset, offset)
+		ctx = context.WithValue(ctx, ctxKeyLimit, limit)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
-	orders := h.pvz.GetOrders()
+	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
+	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
+
+	pagination := &common.Pagination{
+		Offset: offset,
+		Limit:  limit,
+	}
+
+	orders := h.pvz.GetOrders(pagination)
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
@@ -112,7 +154,15 @@ func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) {
-	orders := h.pvz.GetHistory()
+	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
+	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
+
+	pagination := &common.Pagination{
+		Offset: offset,
+		Limit:  limit,
+	}
+
+	orders := h.pvz.GetHistory(pagination)
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
@@ -121,7 +171,15 @@ func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request) {
-	orders := h.pvz.GetAllRefunds()
+	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
+	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
+
+	pagination := &common.Pagination{
+		Offset: offset,
+		Limit:  limit,
+	}
+
+	orders := h.pvz.GetAllRefunds(pagination)
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {

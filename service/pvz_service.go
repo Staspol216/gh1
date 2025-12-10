@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	common "github.com/Staspol216/gh1/models"
 	"github.com/Staspol216/gh1/models/order"
 	"github.com/Staspol216/gh1/storage"
 	"github.com/Staspol216/gh1/utils"
@@ -37,8 +38,8 @@ func New(storage storage.Storager) *Pvz {
 	}
 }
 
-func (s *Pvz) GetOrders() []*order.Order {
-	return s.storage.GetList()
+func (s *Pvz) GetOrders(pagination *common.Pagination) []*order.Order {
+	return s.storage.GetList(pagination)
 }
 
 func (s *Pvz) GetOrderByID(orderId int64) (*order.Order, error) {
@@ -199,8 +200,8 @@ func (p *Pvz) DeliverOrder(targetOrder *order.Order) {
 	p.storage.AddHistoryRecord(newOrderRecord, targetOrder.ID)
 }
 
-func (s *Pvz) GetAllRefunds() []*order.Order {
-	orders := s.storage.GetList()
+func (s *Pvz) GetAllRefunds(pagination *common.Pagination) []*order.Order {
+	orders := s.storage.GetList(pagination)
 
 	var refundedOrders []*order.Order
 
@@ -213,8 +214,8 @@ func (s *Pvz) GetAllRefunds() []*order.Order {
 	return refundedOrders
 }
 
-func (s *Pvz) GetHistory() []*order.Order {
-	orders := s.storage.GetList()
+func (s *Pvz) GetHistory(pagination *common.Pagination) []*order.Order {
+	orders := s.storage.GetList(pagination)
 
 	slices.SortFunc(orders, func(a *order.Order, b *order.Order) int {
 		var aT, bT time.Time

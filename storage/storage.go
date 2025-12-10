@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/Staspol216/gh1/db"
+	common "github.com/Staspol216/gh1/models"
 	"github.com/Staspol216/gh1/models/order"
 	"github.com/Staspol216/gh1/repository/inmemory"
 	"github.com/Staspol216/gh1/repository/postgresql"
@@ -33,7 +34,7 @@ type Config struct {
 }
 
 type Storager interface {
-	GetList() []*order.Order
+	GetList(pagination *common.Pagination) []*order.Order
 	Add(newOrder *order.Order) (int64, error)
 	AddHistoryRecord(record *order.OrderRecord, orderId int64) (int64, error)
 	Delete(orderId int64) error

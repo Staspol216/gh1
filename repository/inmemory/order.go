@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 
+	common "github.com/Staspol216/gh1/models"
 	"github.com/Staspol216/gh1/models/order"
 )
 
@@ -39,7 +40,7 @@ func NewOrderRepo(path string) (*InMemoryOrderRepo, error) {
 	return newStorage, nil
 }
 
-func (p *InMemoryOrderRepo) GetList() []*order.Order {
+func (p *InMemoryOrderRepo) GetList(pagination *common.Pagination) []*order.Order {
 	return p.Orders
 }
 

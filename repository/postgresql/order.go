@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/Staspol216/gh1/db"
+	common "github.com/Staspol216/gh1/models"
 	"github.com/Staspol216/gh1/models/order"
 )
 
@@ -104,7 +106,7 @@ func (r *OrderRepo) Update(updatedOrder *order.Order) error {
 	return nil
 }
 
-func (r *OrderRepo) GetList() []*order.Order {
+func (r *OrderRepo) GetList(pagination *common.Pagination) []*order.Order {
 
 	var orderDTOs []orderDTO
 	err := r.db.Select(r.context, &orderDTOs, `
@@ -124,7 +126,9 @@ func (r *OrderRepo) GetList() []*order.Order {
         SELECT id, order_id, timestamp, status, description
         FROM order_records
         ORDER BY order_id, timestamp
-    `)
+		LIMIT $1
+		OFFSET $2
+    `, pagination.Limit, pagination.Offset)
 	if orderRecordsErr != nil {
 		log.Println(orderRecordsErr)
 		return nil
@@ -178,4 +182,56 @@ func (r *OrderRepo) GetByID(id int64) (*order.Order, error) {
 		return nil, err
 	}
 	return transformOrderDtoToModel(&a), nil
+}
+
+func (r *OrderRepo) SeedOrders() {
+	now := time.Now()
+
+	history := []order.OrderRecord{
+		{
+			Timestamp:   now.Add(-2 * time.Hour),
+			Status:      order.OrderStatusReceived,
+			Description: "Получено от курьера",
+		},
+	}
+
+	for i := 0; i < 10; i++ {
+		var orderID int64
+
+		err := r.db.ExecQueryRow(r.context, `
+			INSERT INTO orders
+			(recipient_id, expiration_date, delivered_date, refunded_date, returned_date, status, weight, worth)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			RETURNING id`,
+			58,                         // recipient
+			now.Add(48*time.Hour),      // expiration
+			now.Add(-1*time.Hour),      // delivered_date
+			nil,                        // refunded_date
+			nil,                        // returned_date
+			order.OrderStatusDelivered, // status
+			1.5,                        // weight
+			2500.0,                     // worth
+		).Scan(&orderID)
+
+		if err != nil {
+			log.Fatal("insert order: %w", err)
+		}
+
+		for _, rec := range history {
+			_, err := r.db.Exec(r.context, `
+				INSERT INTO order_records (order_id, timestamp, status, description)
+				VALUES ($1, $2, $3, $4)`,
+				orderID,
+				rec.Timestamp,
+				rec.Status,
+				rec.Description,
+			)
+
+			if err != nil {
+				log.Fatal("insert record: %w", err)
+			}
+		}
+	}
+
+	log.Println("Orders seeded successfully")
 }
