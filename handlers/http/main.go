@@ -1,13 +1,17 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	common "github.com/Staspol216/gh1/models"
 	Serivces "github.com/Staspol216/gh1/service"
@@ -27,7 +31,6 @@ func New(p *Serivces.Pvz) *HTTPHandler {
 func (h *HTTPHandler) Serve() {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -43,16 +46,16 @@ func (h *HTTPHandler) Serve() {
 	r.Route("/orders", func(r chi.Router) {
 		r.With(paginate).Get("/", h.ListOrders)
 
-		r.Post("/", h.CreateOrder)
+		r.With(logger).Post("/", h.CreateOrder)
 
-		r.Patch("/", h.UpdateOrders)
+		r.With(logger).Patch("/", h.UpdateOrders)
 
 		r.Route("/{orderID}", func(r chi.Router) {
 			r.Use(OrderCtx)
 
 			r.Get("/", h.GetOrderByID)
 
-			r.Delete("/", h.DeleteOrder)
+			r.With(logger).Delete("/", h.DeleteOrder)
 		})
 
 		r.Route("/refunds", func(r chi.Router) {
@@ -105,11 +108,35 @@ func OrderCtx(next http.Handler) http.Handler {
 	})
 }
 
+func logger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+
+		defer r.Body.Close()
+
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		log.Printf("Remote: %s %s", r.RemoteAddr, r.UserAgent())
+		log.Printf("Request: %s %s %s", r.Method, r.URL.Path, r.Proto)
+
+		if len(body) > 0 {
+			log.Printf("Body: %s", string(body))
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func paginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const (
 			defaultOffset int64 = 0
-			defaultLimit  int64 = 20
+			defaultLimit  int64 = 10
 			maxLimit      int64 = 100
 		)
 
@@ -210,6 +237,11 @@ func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	data := &OrderCreateRequest{}
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	if res := time.Now().Compare(data.Order.ExpirationDate); res == 1 {
+		render.Render(w, r, ErrInvalidRequest(errors.New("expiration date can't be in the past")))
 		return
 	}
 

@@ -112,7 +112,9 @@ func (r *OrderRepo) GetList(pagination *common.Pagination) []*order.Order {
 	err := r.db.Select(r.context, &orderDTOs, `
 		SELECT * 
 		FROM orders
-	`)
+		LIMIT $1
+		OFFSET $2
+	`, pagination.Limit, pagination.Offset)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
@@ -126,9 +128,7 @@ func (r *OrderRepo) GetList(pagination *common.Pagination) []*order.Order {
         SELECT id, order_id, timestamp, status, description
         FROM order_records
         ORDER BY order_id, timestamp
-		LIMIT $1
-		OFFSET $2
-    `, pagination.Limit, pagination.Offset)
+    `)
 	if orderRecordsErr != nil {
 		log.Println(orderRecordsErr)
 		return nil

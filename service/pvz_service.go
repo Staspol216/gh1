@@ -9,7 +9,6 @@ import (
 	common "github.com/Staspol216/gh1/models"
 	"github.com/Staspol216/gh1/models/order"
 	"github.com/Staspol216/gh1/storage"
-	"github.com/Staspol216/gh1/utils"
 )
 
 type Action int
@@ -53,11 +52,6 @@ func (s *Pvz) GetOrderByID(orderId int64) (*order.Order, error) {
 }
 
 func (s *Pvz) AcceptFromCourier(payload *order.OrderParams, packagingType string, additionalMembrana bool) int64 {
-	if isPast := utils.IsPastDate(payload.ExpirationDate); isPast {
-		log.Println("expiration date can't be in the past")
-		return 0
-	}
-
 	newOrder := order.New(payload)
 	s.ApplyPackaging(newOrder, packagingType, additionalMembrana)
 	newOrder.SetStatus(order.OrderStatusReceived)
