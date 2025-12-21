@@ -21,19 +21,26 @@ import (
 )
 
 type HTTPHandler struct {
-	pvz *Serivces.Pvz
+	pvz  *Serivces.Pvz
+	jobs chan<- *AuditLog
 }
 
-func New(p *Serivces.Pvz) *HTTPHandler {
-	return &HTTPHandler{pvz: p}
+func New(p *Serivces.Pvz, j chan<- *AuditLog) *HTTPHandler {
+	return &HTTPHandler{pvz: p, jobs: j}
+}
+func (h *HTTPHandler) writeAuditLog(value *AuditLog) {
+	h.jobs <- value
 }
 
-func (h *HTTPHandler) Serve() {
+func (h *HTTPHandler) Serve(ctx context.Context) error {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Use(func(handler http.Handler) http.Handler {
+		return auditLogger(handler, h)
+	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("welcome"))
@@ -69,12 +76,27 @@ func (h *HTTPHandler) Serve() {
 
 	host := os.Getenv("BACKEND_HOST")
 	port := os.Getenv("BACKEND_PORT")
+	addr := fmt.Sprintf("%s:%s", host, port)
 
-	err := http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), r)
-
-	if err != nil {
-		fmt.Println(err)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
 	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("http server error: %v", err)
+		}
+	}()
+
+	log.Println("HTTP server started on", addr)
+
+	<-ctx.Done()
+	log.Println("Shutdown signal received, shutting down HTTP server...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return srv.Shutdown(shutdownCtx)
 }
 
 type ctxKey string

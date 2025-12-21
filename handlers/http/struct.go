@@ -8,8 +8,6 @@ import (
 	"github.com/go-chi/render"
 )
 
-// Error
-
 type ErrResponse struct {
 	Err            error  `json:"-"`               // low-level runtime error
 	HTTPStatusCode int    `json:"-"`               // http response status code

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -23,7 +24,7 @@ func New(pvz *Serivces.Pvz) *CLIHandler {
 	}
 }
 
-func (app *CLIHandler) Serve() {
+func (app *CLIHandler) Serve(context context.Context) error {
 	for {
 		fmt.Printf("> ")
 
