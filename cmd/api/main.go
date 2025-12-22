@@ -13,7 +13,6 @@ import (
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 	pvz_repository "github.com/Staspol216/gh1/internal/repository/storage"
 	pvz_service "github.com/Staspol216/gh1/internal/service"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/joho/godotenv"
 )
 
@@ -43,16 +42,15 @@ func main() {
 	jobs := make(chan *pvz_http.AuditLog, jobsCount)
 	results := make(chan *pvz_http.AuditLog, jobsCount)
 
-	go func() {
-		for res := range results {
-			spew.Dump("Result: \n", res)
-		}
-	}()
-
-	wg.Add(workersCount)
 	for i := 0; i < workersCount; i++ {
-		worker := &pvz_worker.Worker{Context: sigCtx, In: jobs, Out: results, Wg: wg}
-		go worker.Run(i)
+		worker := &pvz_worker.Worker{
+			ProcessStrategyType: pvz_worker.Print,
+			Context:             sigCtx,
+			In:                  jobs,
+			Out:                 results,
+			Wg:                  wg,
+		}
+		worker.RunAndServe(i)
 	}
 
 	postgresConfig := &pvz_repository.Config{

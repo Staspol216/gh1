@@ -28,8 +28,9 @@ type HTTPHandler struct {
 func New(p *pvz_service.Pvz, j chan<- *AuditLog) *HTTPHandler {
 	return &HTTPHandler{pvz: p, jobs: j}
 }
-func (h *HTTPHandler) WriteAuditLog(value *AuditLog) {
-	h.jobs <- value
+
+func (h *HTTPHandler) WriteAuditLog(job *AuditLog) {
+	h.jobs <- job
 }
 
 func (h *HTTPHandler) Serve(ctx context.Context) error {

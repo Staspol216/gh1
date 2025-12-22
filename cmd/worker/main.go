@@ -9,11 +9,26 @@ import (
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 )
 
+type ProcessStrategy = string
+
+const (
+	Print    ProcessStrategy = "print"
+	SaveToDB ProcessStrategy = "saveToDB"
+)
+
 type Worker struct {
-	Context context.Context
-	In      <-chan *pvz_http.AuditLog
-	Out     chan<- *pvz_http.AuditLog
-	Wg      *sync.WaitGroup
+	ProcessStrategyType ProcessStrategy
+	Context             context.Context
+	In                  <-chan *pvz_http.AuditLog
+	Out                 chan *pvz_http.AuditLog
+	Wg                  *sync.WaitGroup
+}
+
+func (w *Worker) RunAndServe(index int) {
+	w.Wg.Add(2)
+
+	go w.Run(index)
+	go w.Serve(index)
 }
 
 func (w *Worker) Run(index int) {
@@ -35,15 +50,16 @@ func (w *Worker) Run(index int) {
 				timeout = nil
 				timer = nil
 			}
+			w.work(batch)
 			fmt.Printf("Worker %d finished\n", index)
 			return
 		case <-timeout:
 			fmt.Printf("Worker %d done the jobs after timeout\n", index)
-			batch = w.Work(batch)
+			batch = w.work(batch)
 			timer = nil
 			timeout = nil
 		case v := <-w.In:
-			fmt.Printf("Worker %d took the job %d\n", index, v)
+			fmt.Printf("Worker %d took the job %s\n", index, v.RequestID)
 
 			batch = append(batch, v)
 			fmt.Println(len(batch), "len(batch)")
@@ -54,7 +70,7 @@ func (w *Worker) Run(index int) {
 					timeout = nil
 					timer = nil
 				}
-				batch = w.Work(batch)
+				batch = w.work(batch)
 				fmt.Printf("Worker %d done the jobs by reaching batch limit\n", index)
 				continue
 			}
@@ -76,11 +92,49 @@ func (w *Worker) Run(index int) {
 	}
 }
 
-func (w *Worker) Work(batch []*pvz_http.AuditLog) []*pvz_http.AuditLog {
+func (w *Worker) Serve(index int) {
+	defer w.Wg.Done()
+
+	fmt.Printf("Serve worker %d started\n", index)
+
+	for {
+		select {
+		case <-w.Context.Done():
+			fmt.Printf("Serve worker %d finished\n", index)
+			return
+		case j := <-w.Out:
+			fmt.Printf("Serve worker %d get job for process\n", index)
+			w.proccess(j)
+		}
+	}
+}
+
+func (w *Worker) proccess(job *pvz_http.AuditLog) {
+	switch w.ProcessStrategyType {
+	case Print:
+		w.print(job)
+	case SaveToDB:
+		w.saveToDB(job)
+	}
+}
+
+func (w *Worker) print(job *pvz_http.AuditLog) {
+	fmt.Printf("Result %#v\n", job)
+}
+
+func (w *Worker) saveToDB(job *pvz_http.AuditLog) {
+	fmt.Printf("Result %#v\n", job)
+}
+
+func (w *Worker) do(job *pvz_http.AuditLog) {
+	w.Out <- job
+}
+
+func (w *Worker) work(batch []*pvz_http.AuditLog) []*pvz_http.AuditLog {
 	count := 0
 
 	for _, job := range batch {
-		w.Out <- job
+		w.do(job)
 		count++
 	}
 
