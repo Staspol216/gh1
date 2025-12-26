@@ -39,20 +39,26 @@ type Storager interface {
 	Delete(orderId int64) error
 	Update(updatedOrder *pvz_model.Order) error
 	GetByID(orderId int64) (*pvz_model.Order, error)
+	GetByIDs(orderIds []int64) ([]*pvz_model.Order, error)
 	GetByRecipientId(recipientId int64) ([]*pvz_model.Order, error)
 }
 
-func NewStorage(cfg *Config) (Storager, error) {
+func NewStorage(cfg *Config) (Storager, *db.Database, error) {
 	switch cfg.StorageType {
 	case StorageTypeInmemory:
-		return inmemory.NewOrderRepo(cfg.Inmemory.Path)
+		repo, err := inmemory.NewOrderRepo(cfg.Inmemory.Path)
+		return repo, nil, err
 	case StorageTypePostgres:
 		db, err := db.NewDb(cfg.Postgres.Context)
 		if err != nil {
 			log.Fatal(err)
 		}
-		return postgresql.NewOrderRepo(db, cfg.Postgres.Context)
+		repo, err := postgresql.NewOrderRepo(db, cfg.Postgres.Context)
+		if err != nil {
+			return nil, nil, err
+		}
+		return repo, db, nil
 	default:
-		return nil, errors.New("unknown storage type")
+		return nil, nil, errors.New("unknown storage type")
 	}
 }

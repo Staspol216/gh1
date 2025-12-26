@@ -20,18 +20,18 @@ DB_SSLMODE ?= disable
 
 POSTGRES_SETUP_TEST ?= user=$(DB_USER) password=$(DB_PASSWORD) dbname=$(DB_NAME) host=$(DB_HOST) port=$(DB_PORT) sslmode=$(DB_SSLMODE)
 
-MIGRATION_FOLDER=$(CURDIR)/db/migrations
+MIGRATION_FOLDER=$(CURDIR)/internal/db/migrations
 
 .PHONY: migration-create
 migration-create:
 	goose -dir "$(MIGRATION_FOLDER)" create "$(name)" sql
 
-.PHONY: test-migration-up
-test-migration-up:
+.PHONY: migration-up
+migration-up:
 	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" up
 
-.PHONY: test-migration-down
-test-migration-down:
+.PHONY: migration-down
+migration-down:
 	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" down
 
 .PHONY: help

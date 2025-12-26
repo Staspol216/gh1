@@ -54,12 +54,10 @@ var ErrNotFound = &ErrResponse{HTTPStatusCode: 404, StatusText: "Resource not fo
 
 type OrderResponse struct {
 	*pvz_model.Order
-
-	Elapsed int64 `json:"elapsed"`
 }
 
 func (rd *OrderResponse) Render(w http.ResponseWriter, r *http.Request) error {
-	rd.Elapsed = 10
+	render.Status(r, http.StatusOK)
 	return nil
 }
 

@@ -8,9 +8,10 @@ import (
 	"sync"
 	"syscall"
 
-	pvz_worker "github.com/Staspol216/gh1/cmd/worker"
+	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
 	pvz_cli "github.com/Staspol216/gh1/internal/handlers/cli"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
+	"github.com/Staspol216/gh1/internal/repository/postgresql"
 	pvz_repository "github.com/Staspol216/gh1/internal/repository/storage"
 	pvz_service "github.com/Staspol216/gh1/internal/service"
 	"github.com/joho/godotenv"
@@ -42,17 +43,6 @@ func main() {
 	jobs := make(chan *pvz_http.AuditLog, jobsCount)
 	results := make(chan *pvz_http.AuditLog, jobsCount)
 
-	for i := 0; i < workersCount; i++ {
-		worker := &pvz_worker.Worker{
-			ProcessStrategyType: pvz_worker.Print,
-			Context:             sigCtx,
-			In:                  jobs,
-			Out:                 results,
-			Wg:                  wg,
-		}
-		worker.RunAndServe(i)
-	}
-
 	postgresConfig := &pvz_repository.Config{
 		StorageType: pvz_repository.StorageTypePostgres,
 		Postgres: &pvz_repository.PostgresConfig{
@@ -60,7 +50,24 @@ func main() {
 		},
 	}
 
-	orderStorage, err := pvz_repository.NewStorage(postgresConfig)
+	orderStorage, db, err := pvz_repository.NewStorage(postgresConfig)
+
+	auditLogRepo := &postgresql.AuditLogRepo{
+		Db:      db,
+		Context: sigCtx,
+	}
+
+	for i := 0; i < workersCount; i++ {
+		worker := &pvz_worker_audit.Worker{
+			ProcessStrategy: pvz_worker_audit.SaveToDB,
+			Context:         sigCtx,
+			In:              jobs,
+			Out:             results,
+			Wg:              wg,
+			Repo:            auditLogRepo,
+		}
+		worker.RunAndServe(i)
+	}
 
 	if err != nil {
 		log.Fatal("pvz.New: %w", err)

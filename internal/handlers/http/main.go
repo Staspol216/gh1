@@ -29,8 +29,8 @@ func New(p *pvz_service.Pvz, j chan<- *AuditLog) *HTTPHandler {
 	return &HTTPHandler{pvz: p, jobs: j}
 }
 
-func (h *HTTPHandler) WriteAuditLog(job *AuditLog) {
-	h.jobs <- job
+func (h *HTTPHandler) WriteAuditLog(j *AuditLog) {
+	h.jobs <- j
 }
 
 func (h *HTTPHandler) Serve(ctx context.Context) error {
@@ -39,24 +39,25 @@ func (h *HTTPHandler) Serve(ctx context.Context) error {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	r.Use(func(handler http.Handler) http.Handler {
-		return AuditLogger(handler, h)
-	})
-
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("welcome"))
-	})
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("pong"))
 	})
 
+	auditLogger := &AuditLogger{h}
+
 	r.Route("/orders", func(r chi.Router) {
-		r.With(paginate).Get("/", h.ListOrders)
+		r.With(func(handler http.Handler) http.Handler {
+			return auditLogger.LogRequestResponseMiddleware(handler)
+		}).With(paginate).Get("/", h.ListOrders)
 
-		r.With(logger).Post("/", h.CreateOrder)
+		r.With(func(handler http.Handler) http.Handler {
+			return auditLogger.LogRequestResponseMiddleware(handler)
+		}).With(logger).Post("/", h.CreateOrder)
 
-		r.With(logger).Patch("/", h.UpdateOrders)
+		r.With(func(handler http.Handler) http.Handler {
+			return auditLogger.LogRequestResponseAndStatusChangeMiddleware(handler)
+		}).With(logger).Patch("/", h.UpdateOrders)
 
 		r.Route("/{orderID}", func(r chi.Router) {
 			r.Use(OrderCtx)

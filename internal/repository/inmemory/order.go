@@ -100,6 +100,19 @@ func (p *InMemoryOrderRepo) GetByID(orderId int64) (*pvz_model.Order, error) {
 	return nil, errors.New("order not found")
 }
 
+func (p *InMemoryOrderRepo) GetByIDs(orderIds []int64) ([]*pvz_model.Order, error) {
+
+	var orders []*pvz_model.Order
+
+	for _, order := range p.Orders {
+		if slices.Contains(orderIds, order.ID) {
+			orders = append(orders, order)
+		}
+	}
+
+	return orders, nil
+}
+
 func (p *InMemoryOrderRepo) GetByRecipientId(recipientId int64) ([]*pvz_model.Order, error) {
 	var recipientOrders []*pvz_model.Order
 

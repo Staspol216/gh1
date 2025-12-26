@@ -2,6 +2,7 @@ package pvz_service
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"slices"
 	"time"
@@ -48,6 +49,16 @@ func (s *Pvz) GetOrderByID(orderId int64) (*pvz_model.Order, error) {
 	}
 
 	return order, nil
+}
+
+func (s *Pvz) GetOrdersByIDs(ordersIds []int64) ([]*pvz_model.Order, error) {
+	orders, err := s.storage.GetByIDs(ordersIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return orders, nil
 }
 
 func (s *Pvz) AcceptFromCourier(payload *pvz_model.OrderParams, packagingType string, additionalMembrana bool) int64 {
@@ -161,12 +172,15 @@ func (p *Pvz) RefundOrder(targetOrder *pvz_model.Order) {
 
 func (p *Pvz) DeliverOrders(orders []*pvz_model.Order) {
 	for _, order := range orders {
-		p.DeliverOrder(order)
+		err := p.DeliverOrder(order)
+		if err != nil {
+			continue
+		}
 		p.storage.Update(order)
 	}
 }
 
-func (p *Pvz) DeliverOrder(targetOrder *pvz_model.Order) {
+func (p *Pvz) DeliverOrder(targetOrder *pvz_model.Order) error {
 	if targetOrder.IsExpired() {
 		targetOrder.SetStatus(pvz_model.OrderStatusExpired)
 		newOrderRecord := &pvz_model.OrderRecord{
@@ -175,11 +189,11 @@ func (p *Pvz) DeliverOrder(targetOrder *pvz_model.Order) {
 			Description: "Срок хранения истек",
 		}
 		p.storage.AddHistoryRecord(newOrderRecord, targetOrder.ID)
-		log.Printf("Order %d can't be delivered because the storage has expired", targetOrder.ID)
+		return fmt.Errorf("Order %d can't be delivered because the storage has expired", targetOrder.ID)
 	}
 
 	if !targetOrder.IsRecieved() {
-		log.Printf("Order %d must be recieved from courier", targetOrder.ID)
+		return fmt.Errorf("Order %d must be recieved from courier", targetOrder.ID)
 	}
 
 	now := time.Now()
@@ -191,6 +205,8 @@ func (p *Pvz) DeliverOrder(targetOrder *pvz_model.Order) {
 		Description: "Заказ выдан клиенту",
 	}
 	p.storage.AddHistoryRecord(newOrderRecord, targetOrder.ID)
+
+	return nil
 }
 
 func (s *Pvz) GetAllRefunds(pagination *pvz_model.Pagination) []*pvz_model.Order {

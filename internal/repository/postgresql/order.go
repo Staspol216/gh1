@@ -170,6 +170,30 @@ func (r *OrderRepo) GetByRecipientId(recipientId int64) ([]*pvz_model.Order, err
 	return orders, nil
 }
 
+func (r *OrderRepo) GetByIDs(ids []int64) ([]*pvz_model.Order, error) {
+	if len(ids) == 0 {
+		return []*pvz_model.Order{}, nil
+	}
+
+	var orderDTOs []orderDTO
+	err := r.db.Select(r.context, &orderDTOs, `SELECT * FROM orders WHERE id = ANY($1)`, ids)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return []*pvz_model.Order{}, nil
+		}
+		log.Print(err)
+		return nil, err
+	}
+
+	var orders []*pvz_model.Order
+
+	for _, dto := range orderDTOs {
+		orders = append(orders, transformOrderDtoToModel(&dto))
+	}
+
+	return orders, nil
+}
+
 func (r *OrderRepo) GetByID(id int64) (*pvz_model.Order, error) {
 	var a orderDTO
 	err := r.db.Get(r.context, &a, `SELECT * FROM orders WHERE id=$1`, id)

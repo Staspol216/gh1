@@ -1,4 +1,4 @@
-package pvz_worker
+package pvz_worker_audit
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
+	"github.com/Staspol216/gh1/internal/repository/postgresql"
 )
 
 type ProcessStrategy = string
@@ -17,11 +18,12 @@ const (
 )
 
 type Worker struct {
-	ProcessStrategyType ProcessStrategy
-	Context             context.Context
-	In                  <-chan *pvz_http.AuditLog
-	Out                 chan *pvz_http.AuditLog
-	Wg                  *sync.WaitGroup
+	ProcessStrategy ProcessStrategy
+	Context         context.Context
+	In              <-chan *pvz_http.AuditLog
+	Out             chan *pvz_http.AuditLog
+	Wg              *sync.WaitGroup
+	Repo            *postgresql.AuditLogRepo
 }
 
 func (w *Worker) RunAndServe(index int) {
@@ -95,35 +97,41 @@ func (w *Worker) Run(index int) {
 func (w *Worker) Serve(index int) {
 	defer w.Wg.Done()
 
-	fmt.Printf("Serve worker %d started\n", index)
+	fmt.Printf("Output worker %d started\n", index)
 
 	for {
 		select {
 		case <-w.Context.Done():
-			fmt.Printf("Serve worker %d finished\n", index)
+			fmt.Printf("Output worker %d finished\n", index)
 			return
 		case j := <-w.Out:
-			fmt.Printf("Serve worker %d get job for process\n", index)
+			fmt.Printf("Output worker %d get job for process\n", index)
 			w.proccess(j)
 		}
 	}
 }
 
 func (w *Worker) proccess(job *pvz_http.AuditLog) {
-	switch w.ProcessStrategyType {
+	switch w.ProcessStrategy {
 	case Print:
-		w.print(job)
+		w.printLog(job)
 	case SaveToDB:
-		w.saveToDB(job)
+		w.saveLog(job)
 	}
 }
 
-func (w *Worker) print(job *pvz_http.AuditLog) {
-	fmt.Printf("Result %#v\n", job)
+func (w *Worker) printLog(job *pvz_http.AuditLog) {
+	fmt.Println("----------- AUDIT LOG RECORD START -----------")
+	fmt.Printf("%#v\n", job)
+	fmt.Println("----------- AUDIT LOG RECORD END -----------")
 }
 
-func (w *Worker) saveToDB(job *pvz_http.AuditLog) {
-	fmt.Printf("Result %#v\n", job)
+func (w *Worker) saveLog(job *pvz_http.AuditLog) {
+	_, err := w.Repo.AddAuditLog((*postgresql.AuditLog)(job))
+	if err != nil {
+		return
+	}
+	fmt.Println("----------- AUDIT LOG RECORD SAVED -----------")
 }
 
 func (w *Worker) do(job *pvz_http.AuditLog) {
