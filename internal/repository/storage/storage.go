@@ -1,9 +1,7 @@
 package pvz_repository
 
 import (
-	"context"
 	"errors"
-	"log"
 
 	"github.com/Staspol216/gh1/internal/db"
 	pvz_model "github.com/Staspol216/gh1/internal/models/order"
@@ -23,7 +21,7 @@ type InMemoryConfig struct {
 }
 
 type PostgresConfig struct {
-	Context context.Context
+	Db *db.Database
 }
 
 type Config struct {
@@ -43,22 +41,13 @@ type Storager interface {
 	GetByRecipientId(recipientId int64) ([]*pvz_model.Order, error)
 }
 
-func NewStorage(cfg *Config) (Storager, *db.Database, error) {
+func New(cfg *Config) (Storager, error) {
 	switch cfg.StorageType {
 	case StorageTypeInmemory:
-		repo, err := inmemory.NewOrderRepo(cfg.Inmemory.Path)
-		return repo, nil, err
+		return inmemory.NewOrderRepo(cfg.Inmemory.Path)
 	case StorageTypePostgres:
-		db, err := db.NewDb(cfg.Postgres.Context)
-		if err != nil {
-			log.Fatal(err)
-		}
-		repo, err := postgresql.NewOrderRepo(db, cfg.Postgres.Context)
-		if err != nil {
-			return nil, nil, err
-		}
-		return repo, db, nil
+		return postgresql.NewOrderRepo(cfg.Postgres.Db)
 	default:
-		return nil, nil, errors.New("unknown storage type")
+		return nil, errors.New("unknown storage type")
 	}
 }

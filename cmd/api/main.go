@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
+	"github.com/Staspol216/gh1/internal/db"
 	pvz_cli "github.com/Staspol216/gh1/internal/handlers/cli"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 	"github.com/Staspol216/gh1/internal/repository/postgresql"
@@ -43,14 +44,17 @@ func main() {
 	jobs := make(chan *pvz_http.AuditLog, jobsCount)
 	results := make(chan *pvz_http.AuditLog, jobsCount)
 
-	postgresConfig := &pvz_repository.Config{
-		StorageType: pvz_repository.StorageTypePostgres,
-		Postgres: &pvz_repository.PostgresConfig{
-			Context: sigCtx,
-		},
+	db, err := db.NewDb(sigCtx)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	orderStorage, db, err := pvz_repository.NewStorage(postgresConfig)
+	postgresRepoConfig := &pvz_repository.Config{
+		StorageType: pvz_repository.StorageTypePostgres,
+		Postgres: &pvz_repository.PostgresConfig{
+			Db: db,
+		},
+	}
 
 	auditLogRepo := &postgresql.AuditLogRepo{
 		Db:      db,
@@ -68,6 +72,8 @@ func main() {
 		}
 		worker.RunAndServe(i)
 	}
+
+	orderStorage, err := pvz_repository.New(postgresRepoConfig)
 
 	if err != nil {
 		log.Fatal("pvz.New: %w", err)

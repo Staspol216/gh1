@@ -24,7 +24,7 @@ func main() {
 		log.Fatal(dbErr)
 	}
 
-	repo, repoErr := postgresql.NewOrderRepo(db, context)
+	repo, repoErr := postgresql.NewOrderRepo(db)
 
 	if repoErr != nil {
 		log.Fatal(repoErr)
