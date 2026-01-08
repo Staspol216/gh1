@@ -52,7 +52,8 @@ func main() {
 	postgresRepoConfig := &pvz_repository.Config{
 		StorageType: pvz_repository.StorageTypePostgres,
 		Postgres: &pvz_repository.PostgresConfig{
-			Db: db,
+			Db:      db,
+			Context: sigCtx,
 		},
 	}
 

@@ -16,9 +16,10 @@ type OrderRepo struct {
 	context context.Context
 }
 
-func NewOrderRepo(database db.DB) (*OrderRepo, error) {
+func NewOrderRepo(database db.DB, ctx context.Context) (*OrderRepo, error) {
 	return &OrderRepo{
-		db: database,
+		db:      database,
+		context: ctx,
 	}, nil
 }
 

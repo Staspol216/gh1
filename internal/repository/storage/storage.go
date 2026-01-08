@@ -1,6 +1,7 @@
 package pvz_repository
 
 import (
+	"context"
 	"errors"
 
 	"github.com/Staspol216/gh1/internal/db"
@@ -21,7 +22,8 @@ type InMemoryConfig struct {
 }
 
 type PostgresConfig struct {
-	Db *db.Database
+	Db      *db.Database
+	Context context.Context
 }
 
 type Config struct {
@@ -46,7 +48,7 @@ func New(cfg *Config) (Storager, error) {
 	case StorageTypeInmemory:
 		return inmemory.NewOrderRepo(cfg.Inmemory.Path)
 	case StorageTypePostgres:
-		return postgresql.NewOrderRepo(cfg.Postgres.Db)
+		return postgresql.NewOrderRepo(cfg.Postgres.Db, cfg.Postgres.Context)
 	default:
 		return nil, errors.New("unknown storage type")
 	}
