@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/Staspol216/gh1/internal/db"
@@ -12,18 +13,16 @@ import (
 )
 
 type OrderRepo struct {
-	db      db.DB
-	context context.Context
+	db db.DB
 }
 
 func NewOrderRepo(database db.DB, ctx context.Context) (*OrderRepo, error) {
 	return &OrderRepo{
-		db:      database,
-		context: ctx,
+		db: database,
 	}, nil
 }
 
-func (r *OrderRepo) Add(order *pvz_model.Order) (int64, error) {
+func (r *OrderRepo) Add(ctx context.Context, order *pvz_model.Order) (int64, error) {
 	query := `INSERT INTO orders (
 		recipient_id,
 		expiration_date,
@@ -32,7 +31,7 @@ func (r *OrderRepo) Add(order *pvz_model.Order) (int64, error) {
 		worth
 	) VALUES ($1, $2, $3, $4, $5) RETURNING id;`
 
-	row := r.db.ExecQueryRow(r.context, query,
+	row := r.db.ExecQueryRow(ctx, query,
 		order.RecipientID,
 		order.ExpirationDate,
 		order.Status,
@@ -48,7 +47,7 @@ func (r *OrderRepo) Add(order *pvz_model.Order) (int64, error) {
 	return id, err
 }
 
-func (r *OrderRepo) AddHistoryRecord(record *pvz_model.OrderRecord, orderId int64) (int64, error) {
+func (r *OrderRepo) AddHistoryRecord(ctx context.Context, record *pvz_model.OrderRecord, orderId int64) (int64, error) {
 	query := `INSERT INTO order_records (
 		order_id,
 		description,
@@ -56,7 +55,7 @@ func (r *OrderRepo) AddHistoryRecord(record *pvz_model.OrderRecord, orderId int6
 		status
 	) VALUES ($1, $2, $3, $4) RETURNING id;`
 
-	row := r.db.ExecQueryRow(r.context, query,
+	row := r.db.ExecQueryRow(ctx, query,
 		orderId,
 		record.Description,
 		record.Timestamp,
@@ -71,8 +70,8 @@ func (r *OrderRepo) AddHistoryRecord(record *pvz_model.OrderRecord, orderId int6
 	return id, err
 }
 
-func (r *OrderRepo) Delete(orderId int64) error {
-	commandTag, err := r.db.Exec(r.context, `DELETE FROM orders WHERE ID = $1;`, orderId)
+func (r *OrderRepo) Delete(ctx context.Context, orderId int64) error {
+	commandTag, err := r.db.Exec(ctx, `DELETE FROM orders WHERE ID = $1;`, orderId)
 	if err != nil {
 		return err
 	}
@@ -82,10 +81,10 @@ func (r *OrderRepo) Delete(orderId int64) error {
 	return nil
 }
 
-func (r *OrderRepo) Update(updatedOrder *pvz_model.Order) error {
+func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_model.Order) error {
 	query := `UPDATE orders SET recipient_id=$1, expiration_date=$2, delivered_date=$3, refunded_date=$4, returned_date=$5, status=$6, weight=$7, worth=$8 WHERE id=$9 RETURNING id;`
 
-	row := r.db.ExecQueryRow(r.context, query,
+	row := r.db.ExecQueryRow(ctx, query,
 		updatedOrder.RecipientID,
 		updatedOrder.ExpirationDate,
 		updatedOrder.DeliveredDate,
@@ -105,10 +104,10 @@ func (r *OrderRepo) Update(updatedOrder *pvz_model.Order) error {
 	return nil
 }
 
-func (r *OrderRepo) GetList(pagination *pvz_model.Pagination) []*pvz_model.Order {
+func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Pagination) []*pvz_model.Order {
 
 	var orderDTOs []orderDTO
-	err := r.db.Select(r.context, &orderDTOs, `
+	err := r.db.Select(ctx, &orderDTOs, `
 		SELECT * 
 		FROM orders
 		LIMIT $1
@@ -123,7 +122,7 @@ func (r *OrderRepo) GetList(pagination *pvz_model.Pagination) []*pvz_model.Order
 	}
 
 	var recordDTOs []orderRecordDTO
-	orderRecordsErr := r.db.Select(r.context, &recordDTOs, `
+	orderRecordsErr := r.db.Select(ctx, &recordDTOs, `
         SELECT id, order_id, timestamp, status, description
         FROM order_records
         ORDER BY order_id, timestamp
@@ -150,9 +149,16 @@ func (r *OrderRepo) GetList(pagination *pvz_model.Pagination) []*pvz_model.Order
 	return orders
 }
 
-func (r *OrderRepo) GetByRecipientId(recipientId int64) ([]*pvz_model.Order, error) {
+func (r *OrderRepo) GetByRecipientId(ctx context.Context, recipientId int64, orderIds []int64) ([]*pvz_model.Order, error) {
 	var orderDTOs []orderDTO
-	err := r.db.Select(r.context, &orderDTOs, `SELECT * FROM orders WHERE recipient_id = $1`, recipientId)
+	var err error
+
+	if len(orderIds) > 0 {
+		err = r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE recipient_id = $1 AND id = ANY($2)`, recipientId, orderIds)
+	} else {
+		err = r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE recipient_id = $1`, recipientId)
+	}
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("not found")
@@ -170,13 +176,13 @@ func (r *OrderRepo) GetByRecipientId(recipientId int64) ([]*pvz_model.Order, err
 	return orders, nil
 }
 
-func (r *OrderRepo) GetByIDs(ids []int64) ([]*pvz_model.Order, error) {
+func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_model.Order, error) {
 	if len(ids) == 0 {
 		return []*pvz_model.Order{}, nil
 	}
 
 	var orderDTOs []orderDTO
-	err := r.db.Select(r.context, &orderDTOs, `SELECT * FROM orders WHERE id = ANY($1)`, ids)
+	err := r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE id = ANY($1)`, ids)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return []*pvz_model.Order{}, nil
@@ -194,9 +200,27 @@ func (r *OrderRepo) GetByIDs(ids []int64) ([]*pvz_model.Order, error) {
 	return orders, nil
 }
 
-func (r *OrderRepo) GetByID(id int64) (*pvz_model.Order, error) {
+func (r *OrderRepo) GetByID(ctx context.Context, id int64, queryOption string) (*pvz_model.Order, error) {
+
+	allowed := map[string]bool{
+		"":                  true,
+		"FOR UPDATE":        true,
+		"FOR NO KEY UPDATE": true,
+		"FOR SHARE":         true,
+		"FOR KEY SHARE":     true,
+	}
+
+	if !allowed[queryOption] {
+		return nil, errors.New("unsupported query option")
+	}
+
+	query := "SELECT * FROM orders WHERE id=$1"
+	if queryOption != "" {
+		query = strings.Join([]string{query, queryOption}, " ")
+	}
+
 	var a orderDTO
-	err := r.db.Get(r.context, &a, `SELECT * FROM orders WHERE id=$1`, id)
+	err := r.db.Get(ctx, &a, query, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("not found")
@@ -207,7 +231,7 @@ func (r *OrderRepo) GetByID(id int64) (*pvz_model.Order, error) {
 	return transformOrderDtoToModel(&a), nil
 }
 
-func (r *OrderRepo) SeedOrders() {
+func (r *OrderRepo) SeedOrders(ctx context.Context) {
 	now := time.Now()
 
 	history := []pvz_model.OrderRecord{
@@ -221,7 +245,7 @@ func (r *OrderRepo) SeedOrders() {
 	for i := 0; i < 10; i++ {
 		var orderID int64
 
-		err := r.db.ExecQueryRow(r.context, `
+		err := r.db.ExecQueryRow(ctx, `
 			INSERT INTO orders
 			(recipient_id, expiration_date, delivered_date, refunded_date, returned_date, status, weight, worth)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
@@ -241,7 +265,7 @@ func (r *OrderRepo) SeedOrders() {
 		}
 
 		for _, rec := range history {
-			_, err := r.db.Exec(r.context, `
+			_, err := r.db.Exec(ctx, `
 				INSERT INTO order_records (order_id, timestamp, status, description)
 				VALUES ($1, $2, $3, $4)`,
 				orderID,

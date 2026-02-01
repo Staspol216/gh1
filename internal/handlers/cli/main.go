@@ -23,7 +23,7 @@ func New(pvz *pvz_service.Pvz) *CLIHandler {
 	}
 }
 
-func (app *CLIHandler) Serve(context context.Context) error {
+func (app *CLIHandler) Serve() error {
 	for {
 		fmt.Printf("> ")
 
@@ -51,6 +51,7 @@ func (c *CLIHandler) getCommandAndArgs(input string) (string, []string, bool) {
 }
 
 func (app *CLIHandler) handleCommand(v string, args []string) {
+	ctx := context.Background()
 	pagination := &pvz_model.Pagination{
 		Offset: 0,
 		Limit:  1000,
@@ -63,20 +64,20 @@ func (app *CLIHandler) handleCommand(v string, args []string) {
 	case command.AcceptFromCourier.String():
 		cliPayload := AcceptFromCourier(args)
 		if cliPayload != nil {
-			app.pvz.AcceptFromCourier(ToOrderParams(cliPayload), *cliPayload.Packaging, *cliPayload.MembranaIncluded)
+			app.pvz.AcceptFromCourier(ctx, ToOrderParams(cliPayload), *cliPayload.Packaging, *cliPayload.MembranaIncluded)
 		}
 	case command.ReturnToCourier.String():
 		orderId := ReturnToCourier(args)
-		app.pvz.ReturnToCourier(orderId)
+		app.pvz.ReturnToCourier(ctx, orderId)
 	case command.ServeRecipient.String():
 		orderIds, recipientId, action := ServeRecipient(args)
-		app.pvz.ServeRecipient(orderIds, recipientId, action)
+		app.pvz.ServeRecipient(ctx, orderIds, recipientId, action)
 	case command.GetAllRefunds.String():
 		GetAllRefunds(args)
-		app.pvz.GetAllRefunds(pagination)
+		app.pvz.GetAllRefunds(ctx, pagination)
 	case command.GetHistory.String():
 		GetHistory(args)
-		app.pvz.GetHistory(pagination)
+		app.pvz.GetHistory(ctx, pagination)
 	default:
 		Unknown()
 	}

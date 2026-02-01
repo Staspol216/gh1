@@ -2,6 +2,7 @@ package pvz_http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,7 +35,7 @@ type AuditLogger struct {
 }
 
 func CreateOrdersStatusesMap(md *AuditLogger, orderIds []int64) (map[int64]string, error) {
-	orders, err := md.handler.pvz.GetOrdersByIDs(orderIds)
+	orders, err := md.handler.pvz.GetOrdersByIDs(context.Background(), orderIds)
 
 	if err != nil {
 		return nil, errors.New("cannot get orders in audit log")

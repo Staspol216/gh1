@@ -21,19 +21,20 @@ import (
 )
 
 type HTTPHandler struct {
-	pvz  *pvz_service.Pvz
-	jobs chan<- *AuditLog
+	pvz     *pvz_service.Pvz
+	jobs    chan<- *AuditLog
+	context context.Context
 }
 
-func New(p *pvz_service.Pvz, j chan<- *AuditLog) *HTTPHandler {
-	return &HTTPHandler{pvz: p, jobs: j}
+func New(context context.Context, p *pvz_service.Pvz, j chan<- *AuditLog) *HTTPHandler {
+	return &HTTPHandler{pvz: p, jobs: j, context: context}
 }
 
 func (h *HTTPHandler) WriteAuditLog(j *AuditLog) {
 	h.jobs <- j
 }
 
-func (h *HTTPHandler) Serve(ctx context.Context) error {
+func (h *HTTPHandler) Serve() error {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -93,7 +94,7 @@ func (h *HTTPHandler) Serve(ctx context.Context) error {
 
 	log.Println("HTTP server started on", addr)
 
-	<-ctx.Done()
+	<-h.context.Done()
 	log.Println("Shutdown signal received, shutting down HTTP server...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -196,7 +197,7 @@ func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 		Limit:  limit,
 	}
 
-	orders := h.pvz.GetOrders(pagination)
+	orders := h.pvz.GetOrders(r.Context(), pagination)
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
@@ -213,7 +214,7 @@ func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) 
 		Limit:  limit,
 	}
 
-	orders := h.pvz.GetHistory(pagination)
+	orders := h.pvz.GetHistory(r.Context(), pagination)
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
@@ -230,7 +231,7 @@ func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request)
 		Limit:  limit,
 	}
 
-	orders := h.pvz.GetAllRefunds(pagination)
+	orders := h.pvz.GetAllRefunds(r.Context(), pagination)
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
@@ -245,7 +246,7 @@ func (h *HTTPHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := h.pvz.GetOrderByID(orderID)
+	order, err := h.pvz.GetOrderByID(r.Context(), orderID)
 	if err != nil {
 		render.Render(w, r, ErrRender(err))
 		return
@@ -269,11 +270,15 @@ func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderId := h.pvz.AcceptFromCourier(data.Order, data.PackagingType, data.MembranaIncluded)
+	orderId, err := h.pvz.AcceptFromCourier(r.Context(), data.Order, data.PackagingType, data.MembranaIncluded)
 
-	err := render.Render(w, r, NewOrderIDResponse(orderId))
 	if err != nil {
-		render.Render(w, r, ErrRender(err))
+		render.Render(w, r, ErrInternal(err))
+	}
+
+	renderError := render.Render(w, r, NewOrderIDResponse(orderId))
+	if renderError != nil {
+		render.Render(w, r, ErrRender(renderError))
 	}
 }
 
@@ -284,7 +289,7 @@ func (h *HTTPHandler) UpdateOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.pvz.ServeRecipient(data.OrderIDs, data.RecipientID, data.Action)
+	err := h.pvz.ServeRecipient(r.Context(), data.OrderIDs, data.RecipientID, data.Action)
 	if err != nil {
 		render.Render(w, r, ErrInternal(err))
 	}
@@ -302,7 +307,7 @@ func (h *HTTPHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	returnErr := h.pvz.ReturnToCourier(orderID)
+	returnErr := h.pvz.ReturnToCourier(r.Context(), orderID)
 	if returnErr != nil {
 		render.Render(w, r, ErrInternal(returnErr))
 	}

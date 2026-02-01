@@ -8,14 +8,14 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-func NewDb(ctx context.Context) (*Database, error) {
+func NewPool(ctx context.Context) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.Connect(ctx, generateDsn())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return newDatabase(pool), nil
+	return pool, nil
 }
 
 func generateDsn() string {

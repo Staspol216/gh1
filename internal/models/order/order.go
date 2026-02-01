@@ -12,6 +12,7 @@ const (
 	OrderStatusDelivered OrderStatus = "delivered"     // выдан клиенту
 	OrderStatusRefunded  OrderStatus = "refunded"      // возвращен клиентом
 	OrderStatusExpired   OrderStatus = "storage_ended" // срок хранения истек
+	OrderStatusNone      OrderStatus = "none"
 )
 
 type Order struct {
@@ -46,7 +47,7 @@ func New(data *OrderParams) *Order {
 		ID:             data.OrderId,
 		ExpirationDate: data.ExpirationDate,
 		RecipientID:    data.RecipientId,
-		Status:         OrderStatusReceived,
+		Status:         OrderStatusNone,
 		History:        []OrderRecord{},
 		Weight:         data.Weight,
 		Worth:          data.Worth,

@@ -14,12 +14,13 @@ import (
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 	"github.com/Staspol216/gh1/internal/repository/postgresql"
 	pvz_repository "github.com/Staspol216/gh1/internal/repository/storage"
+	"github.com/Staspol216/gh1/internal/repository/tx_manager"
 	pvz_service "github.com/Staspol216/gh1/internal/service"
 	"github.com/joho/godotenv"
 )
 
 type Handler interface {
-	Serve(ctx context.Context) error
+	Serve() error
 }
 
 func main() {
@@ -44,10 +45,15 @@ func main() {
 	jobs := make(chan *pvz_http.AuditLog, jobsCount)
 	results := make(chan *pvz_http.AuditLog, jobsCount)
 
-	db, err := db.NewDb(sigCtx)
+	pool, err := db.NewPool(sigCtx)
+
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	txManager := tx_manager.New(pool, sigCtx)
+
+	db := db.NewDatabase(txManager)
 
 	postgresRepoConfig := &pvz_repository.Config{
 		StorageType: pvz_repository.StorageTypePostgres,
@@ -80,22 +86,22 @@ func main() {
 		log.Fatal("pvz.New: %w", err)
 	}
 
-	pvzService := pvz_service.New(orderStorage)
+	pvzService := pvz_service.New(orderStorage, txManager)
 
 	var handler Handler
 
 	if isHTTP {
-		handler = pvz_http.New(pvzService, jobs)
+		handler = pvz_http.New(sigCtx, pvzService, jobs)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := handler.Serve(sigCtx); err != nil {
+			if err := handler.Serve(); err != nil {
 				log.Printf("server shutdown error: %v", err)
 			}
 		}()
 	} else {
 		handler = pvz_cli.New(pvzService)
-		handler.Serve(sigCtx)
+		handler.Serve()
 	}
 
 	wg.Wait()

@@ -3,12 +3,12 @@ package db
 import (
 	"context"
 
+	"github.com/Staspol216/gh1/internal/repository/tx_manager"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/jackc/pgconn"
 
 	"github.com/georgysavva/scany/pgxscan"
-	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type DB interface {
@@ -19,29 +19,27 @@ type DB interface {
 }
 
 type Database struct {
-	cluster *pgxpool.Pool
+	tx tx_manager.TransactionManager
 }
 
-func newDatabase(cluster *pgxpool.Pool) *Database {
-	return &Database{cluster: cluster}
-}
-
-func (db Database) GetPool() *pgxpool.Pool {
-	return db.cluster
+func NewDatabase(tx tx_manager.TransactionManager) *Database {
+	return &Database{
+		tx: tx,
+	}
 }
 
 func (db Database) Get(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	return pgxscan.Get(ctx, db.cluster, dest, query, args...)
+	return pgxscan.Get(ctx, db.tx.GetQueryEngine(ctx), dest, query, args...)
 }
 
 func (db Database) Select(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	return pgxscan.Select(ctx, db.cluster, dest, query, args...)
+	return pgxscan.Select(ctx, db.tx.GetQueryEngine(ctx), dest, query, args...)
 }
 
 func (db Database) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
-	return db.cluster.Exec(ctx, query, args...)
+	return db.tx.GetQueryEngine(ctx).Exec(ctx, query, args...)
 }
 
 func (db Database) ExecQueryRow(ctx context.Context, query string, args ...interface{}) pgx.Row {
-	return db.cluster.QueryRow(ctx, query, args...)
+	return db.tx.GetQueryEngine(ctx).QueryRow(ctx, query, args...)
 }

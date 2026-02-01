@@ -6,6 +6,7 @@ import (
 
 	"github.com/Staspol216/gh1/internal/db"
 	"github.com/Staspol216/gh1/internal/repository/postgresql"
+	"github.com/Staspol216/gh1/internal/repository/tx_manager"
 	"github.com/joho/godotenv"
 )
 
@@ -18,11 +19,15 @@ func main() {
 	context, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, dbErr := db.NewDb(context)
+	pool, err := db.NewPool(context)
 
-	if dbErr != nil {
-		log.Fatal(dbErr)
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	txManager := tx_manager.New(pool, context)
+
+	db := db.NewDatabase(txManager)
 
 	repo, repoErr := postgresql.NewOrderRepo(db, context)
 
@@ -30,6 +35,6 @@ func main() {
 		log.Fatal(repoErr)
 	}
 
-	repo.SeedOrders()
+	repo.SeedOrders(context)
 
 }
