@@ -40,7 +40,7 @@ type Storager interface {
 	Update(ctx context.Context, updatedOrder *pvz_model.Order) error
 	GetByID(ctx context.Context, orderId int64, queryOption string) (*pvz_model.Order, error)
 	GetByIDs(ctx context.Context, orderIds []int64) ([]*pvz_model.Order, error)
-	GetByRecipientId(ctx context.Context, recipientId int64, orderIds []int64) ([]*pvz_model.Order, error)
+	GetByIdAndRecipientId(ctx context.Context, recipientId int64, orderId int64) (*pvz_model.Order, error)
 }
 
 func New(cfg *Config) (Storager, error) {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -52,7 +51,6 @@ func CreateOrdersStatusesMap(md *AuditLogger, orderIds []int64) (map[int64]strin
 
 func (md *AuditLogger) LogRequestResponseAndStatusChangeMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Print(3333)
 		body, _ := io.ReadAll(r.Body)
 		defer r.Body.Close()
 		r.Body = io.NopCloser(bytes.NewBuffer(body))

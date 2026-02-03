@@ -149,15 +149,10 @@ func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 	return orders
 }
 
-func (r *OrderRepo) GetByRecipientId(ctx context.Context, recipientId int64, orderIds []int64) ([]*pvz_model.Order, error) {
-	var orderDTOs []orderDTO
-	var err error
+func (r *OrderRepo) GetByIdAndRecipientId(ctx context.Context, recipientId int64, orderId int64) (*pvz_model.Order, error) {
+	var orderDTO orderDTO
 
-	if len(orderIds) > 0 {
-		err = r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE recipient_id = $1 AND id = ANY($2)`, recipientId, orderIds)
-	} else {
-		err = r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE recipient_id = $1`, recipientId)
-	}
+	err := r.db.Select(ctx, &orderDTO, `SELECT * FROM orders WHERE recipient_id = $1 AND id = $2`, recipientId, orderId)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -167,13 +162,9 @@ func (r *OrderRepo) GetByRecipientId(ctx context.Context, recipientId int64, ord
 		return nil, err
 	}
 
-	var orders []*pvz_model.Order
+	order := transformOrderDtoToModel(&orderDTO)
 
-	for _, dto := range orderDTOs {
-		orders = append(orders, transformOrderDtoToModel(&dto))
-	}
-
-	return orders, nil
+	return order, nil
 }
 
 func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_model.Order, error) {

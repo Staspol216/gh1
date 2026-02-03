@@ -6,15 +6,6 @@ import (
 
 type OrderStatus string
 
-const (
-	OrderStatusReceived  OrderStatus = "received"      // принят от курьера
-	OrderStatusReturned  OrderStatus = "returned"      // возвращен курьеру
-	OrderStatusDelivered OrderStatus = "delivered"     // выдан клиенту
-	OrderStatusRefunded  OrderStatus = "refunded"      // возвращен клиентом
-	OrderStatusExpired   OrderStatus = "storage_ended" // срок хранения истек
-	OrderStatusNone      OrderStatus = "none"
-)
-
 type Order struct {
 	ID             int64         `json:"id"`
 	RecipientID    int64         `json:"recipient_id"`
@@ -26,12 +17,6 @@ type Order struct {
 	History        []OrderRecord `json:"history"`
 	Weight         float64       `json:"weight"`
 	Worth          float64       `json:"worth"`
-}
-
-type OrderRecord struct {
-	Timestamp   time.Time   `json:"timestamp"`
-	Status      OrderStatus `json:"status"`
-	Description string      `json:"description"`
 }
 
 type OrderParams struct {
@@ -66,6 +51,11 @@ func (o *Order) IsRecieved() bool {
 	return o.Status == OrderStatusReceived
 }
 
+func (o *Order) IsExpired() bool {
+	res := o.ExpirationDate.Compare(time.Now())
+	return res == -1
+}
+
 func (o *Order) CanBeRefunded() bool {
 	const DAYS_FOR_REFUNDING = 2
 	refundExpirationDate := o.DeliveredDate.AddDate(0, 0, DAYS_FOR_REFUNDING)
@@ -76,17 +66,19 @@ func (o *Order) CanBeRefunded() bool {
 func (o *Order) Refund() {
 	now := time.Now()
 	o.RefundedDate = &now
+	o.SetStatus(OrderStatusRefunded)
 }
 
-func (o *Order) IsExpired() bool {
-	res := o.ExpirationDate.Compare(time.Now())
-	return res == -1
+func (o *Order) Deliver() {
+	now := time.Now()
+	o.DeliveredDate = &now
+	o.SetStatus(OrderStatusDelivered)
+}
+
+func (o *Order) Expire() {
+	o.SetStatus(OrderStatusExpired)
 }
 
 func (o *Order) SetStatus(status OrderStatus) {
 	o.Status = status
-}
-
-func (o *Order) SetDeliveredDate(date *time.Time) {
-	o.DeliveredDate = date
 }

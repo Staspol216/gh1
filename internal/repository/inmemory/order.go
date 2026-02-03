@@ -114,17 +114,15 @@ func (p *InMemoryOrderRepo) GetByIDs(ctx context.Context, orderIds []int64) ([]*
 	return orders, nil
 }
 
-func (p *InMemoryOrderRepo) GetByRecipientId(ctx context.Context, recipientId int64, orderIds []int64) ([]*pvz_model.Order, error) {
-	var recipientOrders []*pvz_model.Order
+func (p *InMemoryOrderRepo) GetByIdAndRecipientId(ctx context.Context, recipientId int64, orderId int64) (*pvz_model.Order, error) {
 
 	for _, order := range p.Orders {
-
 		if order.RecipientID == recipientId {
-			recipientOrders = append(recipientOrders, order)
+			return order, nil
 		}
 	}
 
-	return recipientOrders, nil
+	return nil, nil
 }
 
 func (p *InMemoryOrderRepo) saveStorageToFile() error {

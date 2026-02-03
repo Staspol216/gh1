@@ -79,12 +79,7 @@ func (p *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_model.OrderPar
 			orderId = 0
 			return err
 		}
-		orderHistoryRecord := &pvz_model.OrderRecord{
-			Timestamp:   time.Now(),
-			Status:      newOrder.Status,
-			Description: "Заказ получен от курьера",
-		}
-		p.storage.AddHistoryRecord(ctxTx, orderHistoryRecord, id)
+		p.storage.AddHistoryRecord(ctxTx, pvz_model.NewOrderRecordReceived(), id)
 
 		log.Println("order was succesfully added to the store")
 		orderId = id
@@ -129,7 +124,7 @@ func (s *Pvz) ApplyPackaging(order *pvz_model.Order, packagingType string, addit
 
 func (p *Pvz) ReturnToCourier(ctx context.Context, orderId int64) error {
 
-	txError := p.txManager.RunSerializable(func(ctxTx context.Context) error {
+	txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
 		order, err := p.storage.GetByID(ctxTx, orderId, "")
 
 		if err != nil {
@@ -170,75 +165,70 @@ func (p *Pvz) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId
 
 func (p *Pvz) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
 
-	txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
+	for _, orderId := range ordersIds {
 
-		recipientOrders, _ := p.storage.GetByRecipientId(ctxTx, recipientId, ordersIds)
+		txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
 
-		for _, order := range recipientOrders {
+			order, _ := p.storage.GetByIdAndRecipientId(ctx, recipientId, orderId)
+
+			if order == nil {
+				return fmt.Errorf("Order %d not found", orderId)
+			}
 
 			if order.IsDelivered() && order.CanBeRefunded() {
 				order.Refund()
-				order.SetStatus(pvz_model.OrderStatusRefunded)
-				newOrderRecord := &pvz_model.OrderRecord{
-					Timestamp:   time.Now(),
-					Status:      order.Status,
-					Description: "Заказ возвращен от клиента",
-				}
-				p.storage.AddHistoryRecord(ctxTx, newOrderRecord, order.ID)
+				p.storage.AddHistoryRecord(ctxTx, pvz_model.NewOrderRecordRefunded(), order.ID)
 				err := p.storage.Update(ctxTx, order)
 				return err
 			} else {
 				return fmt.Errorf("Order %d can not be refunded to recipient because refund time has expired or already refunded by recipient", order.ID)
 			}
+
+		})
+
+		if txError != nil {
+			return txError
 		}
+	}
 
-		return nil
-	})
-
-	return txError
+	return nil
 }
 
 func (p *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
 
-	txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
+	for _, orderId := range ordersIds {
 
-		recipientOrders, _ := p.storage.GetByRecipientId(ctxTx, recipientId, ordersIds)
+		txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
 
-		for _, order := range recipientOrders {
+			order, _ := p.storage.GetByIdAndRecipientId(ctx, recipientId, orderId)
+
+			if order == nil {
+				return fmt.Errorf("Order %d not found", orderId)
+			}
 
 			if !order.IsRecieved() {
 				return fmt.Errorf("Order %d must be recieved from courier", order.ID)
 			}
 
 			if order.IsExpired() {
-				order.SetStatus(pvz_model.OrderStatusExpired)
-				newOrderRecord := &pvz_model.OrderRecord{
-					Timestamp:   time.Now(),
-					Status:      order.Status,
-					Description: "Срок хранения истек",
-				}
-				p.storage.AddHistoryRecord(ctxTx, newOrderRecord, order.ID)
+				order.Expire()
+				p.storage.AddHistoryRecord(ctxTx, pvz_model.NewOrderRecordExpired(), order.ID)
 				err := p.storage.Update(ctxTx, order)
 				return err
 			} else {
-				now := time.Now()
-				order.SetDeliveredDate(&now)
-				order.SetStatus(pvz_model.OrderStatusDelivered)
-				newOrderRecord := &pvz_model.OrderRecord{
-					Timestamp:   time.Now(),
-					Status:      order.Status,
-					Description: "Заказ выдан клиенту",
-				}
-				p.storage.AddHistoryRecord(ctxTx, newOrderRecord, order.ID)
+				order.Deliver()
+				p.storage.AddHistoryRecord(ctxTx, pvz_model.NewOrderRecordDelivered(), order.ID)
 				err := p.storage.Update(ctxTx, order)
 				return err
 			}
+		})
+
+		if txError != nil {
+			return txError
 		}
+	}
 
-		return nil
-	})
-
-	return txError
+	return nil
 }
 
 func (s *Pvz) GetAllRefunds(ctx context.Context, pagination *pvz_model.Pagination) []*pvz_model.Order {
