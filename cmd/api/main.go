@@ -13,7 +13,6 @@ import (
 	pvz_cli "github.com/Staspol216/gh1/internal/handlers/cli"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 	"github.com/Staspol216/gh1/internal/repository/postgresql"
-	pvz_repository "github.com/Staspol216/gh1/internal/repository/storage"
 	"github.com/Staspol216/gh1/internal/repository/tx_manager"
 	pvz_service "github.com/Staspol216/gh1/internal/service"
 	"github.com/joho/godotenv"
@@ -29,9 +28,9 @@ func main() {
 		workersCount = 2
 	)
 
-	wg := &sync.WaitGroup{}
-
 	isHTTP := true
+
+	wg := &sync.WaitGroup{}
 
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file loaded")
@@ -53,11 +52,19 @@ func main() {
 
 	txManager := tx_manager.New(pool, sigCtx)
 
+	orderCache := pvz_service.NewCache()
+
+	defer orderCache.Rdb.Close()
+
+	if redisPingErr := orderCache.Healthcheck(sigCtx); redisPingErr != nil {
+		log.Fatal(redisPingErr)
+	}
+
 	db := db.NewDatabase(txManager)
 
-	postgresRepoConfig := &pvz_repository.Config{
-		StorageType: pvz_repository.StorageTypePostgres,
-		Postgres: &pvz_repository.PostgresConfig{
+	postgresRepoConfig := &pvz_service.Config{
+		StorageType: pvz_service.StorageTypePostgres,
+		Postgres: &pvz_service.PostgresConfig{
 			Db:      db,
 			Context: sigCtx,
 		},
@@ -80,13 +87,19 @@ func main() {
 		worker.RunAndServe(i)
 	}
 
-	orderStorage, err := pvz_repository.New(postgresRepoConfig)
+	orderStorage, err := pvz_service.NewStorage(postgresRepoConfig)
 
 	if err != nil {
 		log.Fatal("pvz.New: %w", err)
 	}
 
-	pvzService := pvz_service.New(orderStorage, txManager)
+	populateCacheErr := orderCache.PopulateOrders(sigCtx, orderStorage, 0)
+
+	if populateCacheErr != nil {
+		log.Fatal("PopulateOrdersCache: %w", populateCacheErr)
+	}
+
+	pvzService := pvz_service.New(orderStorage, orderCache, txManager)
 
 	var handler Handler
 

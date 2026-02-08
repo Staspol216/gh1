@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/Staspol216/gh1/internal/db"
@@ -104,21 +103,11 @@ func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_model.Order) e
 	return nil
 }
 
-func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Pagination) []*pvz_model.Order {
-
+func (r *OrderRepo) GetAll(ctx context.Context) ([]*pvz_model.Order, error) {
 	var orderDTOs []orderDTO
-	err := r.db.Select(ctx, &orderDTOs, `
-		SELECT * 
-		FROM orders
-		LIMIT $1
-		OFFSET $2
-	`, pagination.Limit, pagination.Offset)
+	err := r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders ORDER BY id ASC`)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		log.Print(err)
-		return nil
+		return nil, err
 	}
 
 	var recordDTOs []orderRecordDTO
@@ -128,8 +117,7 @@ func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Paginatio
         ORDER BY order_id, timestamp
     `)
 	if orderRecordsErr != nil {
-		log.Println(orderRecordsErr)
-		return nil
+		return nil, orderRecordsErr
 	}
 
 	m := make(map[int64][]pvz_model.OrderRecord)
@@ -146,25 +134,50 @@ func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 		orders = append(orders, orderModel)
 	}
 
-	return orders
+	return orders, nil
 }
 
-func (r *OrderRepo) GetByIdAndRecipientId(ctx context.Context, recipientId int64, orderId int64) (*pvz_model.Order, error) {
-	var orderDTO orderDTO
+func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Pagination) ([]*pvz_model.Order, error) {
 
-	err := r.db.Select(ctx, &orderDTO, `SELECT * FROM orders WHERE recipient_id = $1 AND id = $2`, recipientId, orderId)
+	var orderDTOs []orderDTO
+	err := r.db.Select(ctx, &orderDTOs, `
+		SELECT * 
+		FROM orders
+		ORDER BY id ASC
+		LIMIT $1
+		OFFSET $2
+	`, pagination.Limit, pagination.Offset)
 
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("not found")
-		}
-		log.Print(err)
 		return nil, err
 	}
 
-	order := transformOrderDtoToModel(&orderDTO)
+	var recordDTOs []orderRecordDTO
+	orderRecordsErr := r.db.Select(ctx, &recordDTOs, `
+        SELECT id, order_id, timestamp, status, description
+        FROM order_records
+        ORDER BY order_id, timestamp
+    `)
 
-	return order, nil
+	if orderRecordsErr != nil {
+		return nil, orderRecordsErr
+	}
+
+	m := make(map[int64][]pvz_model.OrderRecord)
+	for _, recordDTO := range recordDTOs {
+		orderRecordModel := transformOrderRecordDtoToModel(&recordDTO)
+		m[recordDTO.OrderID] = append(m[recordDTO.OrderID], *orderRecordModel)
+	}
+
+	var orders []*pvz_model.Order
+
+	for _, dto := range orderDTOs {
+		orderModel := transformOrderDtoToModel(&dto)
+		orderModel.History = m[orderModel.ID]
+		orders = append(orders, orderModel)
+	}
+
+	return orders, nil
 }
 
 func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_model.Order, error) {
@@ -173,7 +186,7 @@ func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_model.Ord
 	}
 
 	var orderDTOs []orderDTO
-	err := r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE id = ANY($1)`, ids)
+	err := r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE id = ANY($1) ORDER BY id ASC`, ids)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return []*pvz_model.Order{}, nil
@@ -191,27 +204,9 @@ func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_model.Ord
 	return orders, nil
 }
 
-func (r *OrderRepo) GetByID(ctx context.Context, id int64, queryOption string) (*pvz_model.Order, error) {
-
-	allowed := map[string]bool{
-		"":                  true,
-		"FOR UPDATE":        true,
-		"FOR NO KEY UPDATE": true,
-		"FOR SHARE":         true,
-		"FOR KEY SHARE":     true,
-	}
-
-	if !allowed[queryOption] {
-		return nil, errors.New("unsupported query option")
-	}
-
-	query := "SELECT * FROM orders WHERE id=$1"
-	if queryOption != "" {
-		query = strings.Join([]string{query, queryOption}, " ")
-	}
-
+func (r *OrderRepo) GetByID(ctx context.Context, id int64) (*pvz_model.Order, error) {
 	var a orderDTO
-	err := r.db.Get(ctx, &a, query, id)
+	err := r.db.Get(ctx, &a, "SELECT * FROM orders WHERE id=$1", id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("not found")

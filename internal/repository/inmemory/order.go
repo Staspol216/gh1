@@ -40,12 +40,16 @@ func NewOrderRepo(path string) (*InMemoryOrderRepo, error) {
 	return newStorage, nil
 }
 
-func (p *InMemoryOrderRepo) GetList(ctx context.Context, pagination *pvz_model.Pagination) []*pvz_model.Order {
-	return p.Orders
+func (p *InMemoryOrderRepo) GetAll(ctx context.Context) ([]*pvz_model.Order, error) {
+	return p.Orders, nil
+}
+
+func (p *InMemoryOrderRepo) GetList(ctx context.Context, pagination *pvz_model.Pagination) ([]*pvz_model.Order, error) {
+	return p.Orders, nil
 }
 
 func (p *InMemoryOrderRepo) Add(ctx context.Context, newOrder *pvz_model.Order) (int64, error) {
-	_, err := p.GetByID(ctx, newOrder.ID, "")
+	_, err := p.GetByID(ctx, newOrder.ID)
 
 	if err == nil {
 		return 0, errors.New("order already exists in the store")
@@ -91,7 +95,7 @@ func (p *InMemoryOrderRepo) Delete(ctx context.Context, orderId int64) error {
 	return nil
 }
 
-func (p *InMemoryOrderRepo) GetByID(ctx context.Context, orderId int64, _ string) (*pvz_model.Order, error) {
+func (p *InMemoryOrderRepo) GetByID(ctx context.Context, orderId int64) (*pvz_model.Order, error) {
 	for _, order := range p.Orders {
 		if order.ID == orderId {
 			return order, nil
@@ -112,17 +116,6 @@ func (p *InMemoryOrderRepo) GetByIDs(ctx context.Context, orderIds []int64) ([]*
 	}
 
 	return orders, nil
-}
-
-func (p *InMemoryOrderRepo) GetByIdAndRecipientId(ctx context.Context, recipientId int64, orderId int64) (*pvz_model.Order, error) {
-
-	for _, order := range p.Orders {
-		if order.RecipientID == recipientId {
-			return order, nil
-		}
-	}
-
-	return nil, nil
 }
 
 func (p *InMemoryOrderRepo) saveStorageToFile() error {

@@ -20,7 +20,6 @@ type Order struct {
 }
 
 type OrderParams struct {
-	OrderId        int64     `json:"order_id"`
 	RecipientId    int64     `json:"recipient_id"`
 	ExpirationDate time.Time `json:"expiration_date"`
 	Weight         float64   `json:"weight"`
@@ -29,7 +28,6 @@ type OrderParams struct {
 
 func New(data *OrderParams) *Order {
 	return &Order{
-		ID:             data.OrderId,
 		ExpirationDate: data.ExpirationDate,
 		RecipientID:    data.RecipientId,
 		Status:         OrderStatusNone,

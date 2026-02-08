@@ -85,7 +85,6 @@ func (app *CLIHandler) handleCommand(v string, args []string) {
 
 func ToOrderParams(p *OrderPayload) *pvz_model.OrderParams {
 	return &pvz_model.OrderParams{
-		OrderId:        *p.OrderId,
 		RecipientId:    *p.RecipientId,
 		ExpirationDate: *p.ExpirationDate,
 		Weight:         *p.Weight,

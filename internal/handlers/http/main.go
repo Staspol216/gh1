@@ -197,7 +197,12 @@ func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 		Limit:  limit,
 	}
 
-	orders := h.pvz.GetOrders(r.Context(), pagination)
+	orders, getOrdersErr := h.pvz.GetOrders(r.Context(), pagination)
+
+	if getOrdersErr != nil {
+		render.Render(w, r, ErrInternal(getOrdersErr))
+		return
+	}
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
@@ -214,11 +219,16 @@ func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) 
 		Limit:  limit,
 	}
 
-	orders := h.pvz.GetHistory(r.Context(), pagination)
+	orders, err := h.pvz.GetHistory(r.Context(), pagination)
 
-	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
-		render.Render(w, r, ErrRender(err))
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
+
+	renderErr := render.RenderList(w, r, NewOrdersListResponse(orders))
+	if renderErr != nil {
+		render.Render(w, r, ErrRender(renderErr))
 	}
 }
 
@@ -231,11 +241,16 @@ func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request)
 		Limit:  limit,
 	}
 
-	orders := h.pvz.GetAllRefunds(r.Context(), pagination)
+	orders, err := h.pvz.GetAllRefunds(r.Context(), pagination)
 
-	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
-		render.Render(w, r, ErrRender(err))
+		render.Render(w, r, ErrInternal(err))
+		return
+	}
+
+	renderErr := render.RenderList(w, r, NewOrdersListResponse(orders))
+	if renderErr != nil {
+		render.Render(w, r, ErrRender(renderErr))
 	}
 }
 
@@ -248,7 +263,7 @@ func (h *HTTPHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 
 	order, err := h.pvz.GetOrderByID(r.Context(), orderID)
 	if err != nil {
-		render.Render(w, r, ErrRender(err))
+		render.Render(w, r, ErrInternal(err))
 		return
 	}
 

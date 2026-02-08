@@ -1,4 +1,4 @@
-package pvz_repository
+package pvz_service
 
 import (
 	"context"
@@ -33,17 +33,17 @@ type Config struct {
 }
 
 type Storager interface {
-	GetList(ctx context.Context, pagination *pvz_model.Pagination) []*pvz_model.Order
+	GetAll(ctx context.Context) ([]*pvz_model.Order, error)
+	GetList(ctx context.Context, pagination *pvz_model.Pagination) ([]*pvz_model.Order, error)
 	Add(ctx context.Context, newOrder *pvz_model.Order) (int64, error)
 	AddHistoryRecord(ctx context.Context, record *pvz_model.OrderRecord, orderId int64) (int64, error)
 	Delete(ctx context.Context, orderId int64) error
 	Update(ctx context.Context, updatedOrder *pvz_model.Order) error
-	GetByID(ctx context.Context, orderId int64, queryOption string) (*pvz_model.Order, error)
+	GetByID(ctx context.Context, orderId int64) (*pvz_model.Order, error)
 	GetByIDs(ctx context.Context, orderIds []int64) ([]*pvz_model.Order, error)
-	GetByIdAndRecipientId(ctx context.Context, recipientId int64, orderId int64) (*pvz_model.Order, error)
 }
 
-func New(cfg *Config) (Storager, error) {
+func NewStorage(cfg *Config) (Storager, error) {
 	switch cfg.StorageType {
 	case StorageTypeInmemory:
 		return inmemory.NewOrderRepo(cfg.Inmemory.Path)
