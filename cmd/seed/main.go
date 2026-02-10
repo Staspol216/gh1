@@ -4,9 +4,9 @@ import (
 	"context"
 	"log"
 
-	"github.com/Staspol216/gh1/internal/db"
-	"github.com/Staspol216/gh1/internal/repository/postgresql"
-	"github.com/Staspol216/gh1/internal/repository/tx_manager"
+	db "github.com/Staspol216/gh1/internal/db/postgres"
+	"github.com/Staspol216/gh1/internal/db/tx_manager"
+	psql_order_repo "github.com/Staspol216/gh1/internal/repository/order/postgres"
 	"github.com/joho/godotenv"
 )
 
@@ -29,7 +29,7 @@ func main() {
 
 	db := db.NewDatabase(txManager)
 
-	repo, repoErr := postgresql.NewOrderRepo(db, context)
+	repo, repoErr := psql_order_repo.NewOrderRepo(db, context)
 
 	if repoErr != nil {
 		log.Fatal(repoErr)

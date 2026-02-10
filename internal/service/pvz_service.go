@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Staspol216/gh1/internal/db/tx_manager"
 	pvz_model "github.com/Staspol216/gh1/internal/models/order"
-	"github.com/Staspol216/gh1/internal/repository/tx_manager"
 )
 
 type Action int

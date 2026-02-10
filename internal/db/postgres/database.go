@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 
-	"github.com/Staspol216/gh1/internal/repository/tx_manager"
+	"github.com/Staspol216/gh1/internal/db/tx_manager"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/jackc/pgconn"

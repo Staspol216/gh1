@@ -9,11 +9,11 @@ import (
 	"syscall"
 
 	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
-	"github.com/Staspol216/gh1/internal/db"
+	db "github.com/Staspol216/gh1/internal/db/postgres"
+	"github.com/Staspol216/gh1/internal/db/tx_manager"
 	pvz_cli "github.com/Staspol216/gh1/internal/handlers/cli"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
-	"github.com/Staspol216/gh1/internal/repository/postgresql"
-	"github.com/Staspol216/gh1/internal/repository/tx_manager"
+	psql_order_repo "github.com/Staspol216/gh1/internal/repository/order/postgres"
 	pvz_service "github.com/Staspol216/gh1/internal/service"
 	"github.com/joho/godotenv"
 )
@@ -70,7 +70,7 @@ func main() {
 		},
 	}
 
-	auditLogRepo := &postgresql.AuditLogRepo{
+	auditLogRepo := &psql_order_repo.AuditLogRepo{
 		Db:      db,
 		Context: sigCtx,
 	}

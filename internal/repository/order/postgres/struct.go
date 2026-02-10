@@ -1,4 +1,4 @@
-package postgresql
+package psql_order_repo
 
 import (
 	"database/sql"

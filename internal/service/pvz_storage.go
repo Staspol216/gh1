@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Staspol216/gh1/internal/db"
+	db "github.com/Staspol216/gh1/internal/db/postgres"
 	pvz_model "github.com/Staspol216/gh1/internal/models/order"
-	"github.com/Staspol216/gh1/internal/repository/inmemory"
-	"github.com/Staspol216/gh1/internal/repository/postgresql"
+	inmemory_order_repo "github.com/Staspol216/gh1/internal/repository/order/inmemory"
+	psql_order_repo "github.com/Staspol216/gh1/internal/repository/order/postgres"
 )
 
 type StorageType string
@@ -46,9 +46,9 @@ type Storager interface {
 func NewStorage(cfg *Config) (Storager, error) {
 	switch cfg.StorageType {
 	case StorageTypeInmemory:
-		return inmemory.NewOrderRepo(cfg.Inmemory.Path)
+		return inmemory_order_repo.NewOrderRepo(cfg.Inmemory.Path)
 	case StorageTypePostgres:
-		return postgresql.NewOrderRepo(cfg.Postgres.Db, cfg.Postgres.Context)
+		return psql_order_repo.NewOrderRepo(cfg.Postgres.Db, cfg.Postgres.Context)
 	default:
 		return nil, errors.New("unknown storage type")
 	}

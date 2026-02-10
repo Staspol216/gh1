@@ -1,4 +1,4 @@
-package inmemory
+package inmemory_order_repo
 
 import (
 	"context"

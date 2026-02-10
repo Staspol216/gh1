@@ -7,7 +7,8 @@ import (
 	"time"
 
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
-	"github.com/Staspol216/gh1/internal/repository/postgresql"
+	pvz_model "github.com/Staspol216/gh1/internal/models/audit_log"
+	psql_order_repo "github.com/Staspol216/gh1/internal/repository/order/postgres"
 )
 
 type ProcessStrategy = string
@@ -23,7 +24,7 @@ type Worker struct {
 	In              <-chan *pvz_http.AuditLog
 	Out             chan *pvz_http.AuditLog
 	Wg              *sync.WaitGroup
-	Repo            *postgresql.AuditLogRepo
+	Repo            *psql_order_repo.AuditLogRepo
 }
 
 func (w *Worker) RunAndServe(index int) {
@@ -127,7 +128,7 @@ func (w *Worker) printLog(job *pvz_http.AuditLog) {
 }
 
 func (w *Worker) saveLog(job *pvz_http.AuditLog) {
-	_, err := w.Repo.AddAuditLog((*postgresql.AuditLog)(job))
+	_, err := w.Repo.AddAuditLog((*pvz_model.AuditLog)(job))
 	if err != nil {
 		return
 	}

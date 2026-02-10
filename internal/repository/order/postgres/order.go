@@ -1,4 +1,4 @@
-package postgresql
+package psql_order_repo
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/Staspol216/gh1/internal/db"
+	db "github.com/Staspol216/gh1/internal/db/postgres"
 	pvz_model "github.com/Staspol216/gh1/internal/models/order"
 )
 
