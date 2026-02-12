@@ -7,21 +7,21 @@ import (
 	"log"
 	"time"
 
-	db "github.com/Staspol216/gh1/internal/db/postgres"
-	pvz_model "github.com/Staspol216/gh1/internal/models/order"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
 )
 
 type OrderRepo struct {
 	db db.DB
 }
 
-func NewOrderRepo(database db.DB, ctx context.Context) (*OrderRepo, error) {
+func New(database db.DB, ctx context.Context) (*OrderRepo, error) {
 	return &OrderRepo{
 		db: database,
 	}, nil
 }
 
-func (r *OrderRepo) Add(ctx context.Context, order *pvz_model.Order) (int64, error) {
+func (r *OrderRepo) Add(ctx context.Context, order *pvz_domain.Order) (int64, error) {
 	query := `INSERT INTO orders (
 		recipient_id,
 		expiration_date,
@@ -46,7 +46,7 @@ func (r *OrderRepo) Add(ctx context.Context, order *pvz_model.Order) (int64, err
 	return id, err
 }
 
-func (r *OrderRepo) AddHistoryRecord(ctx context.Context, record *pvz_model.OrderRecord, orderId int64) (int64, error) {
+func (r *OrderRepo) AddHistoryRecord(ctx context.Context, record *pvz_domain.OrderRecord, orderId int64) (int64, error) {
 	query := `INSERT INTO order_records (
 		order_id,
 		description,
@@ -80,7 +80,7 @@ func (r *OrderRepo) Delete(ctx context.Context, orderId int64) error {
 	return nil
 }
 
-func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_model.Order) error {
+func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_domain.Order) error {
 	query := `UPDATE orders SET recipient_id=$1, expiration_date=$2, delivered_date=$3, refunded_date=$4, returned_date=$5, status=$6, weight=$7, worth=$8 WHERE id=$9 RETURNING id;`
 
 	row := r.db.ExecQueryRow(ctx, query,
@@ -103,7 +103,7 @@ func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_model.Order) e
 	return nil
 }
 
-func (r *OrderRepo) GetAll(ctx context.Context) ([]*pvz_model.Order, error) {
+func (r *OrderRepo) GetAll(ctx context.Context) ([]*pvz_domain.Order, error) {
 	var orderDTOs []orderDTO
 	err := r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders ORDER BY id ASC`)
 	if err != nil {
@@ -120,13 +120,13 @@ func (r *OrderRepo) GetAll(ctx context.Context) ([]*pvz_model.Order, error) {
 		return nil, orderRecordsErr
 	}
 
-	m := make(map[int64][]pvz_model.OrderRecord)
+	m := make(map[int64][]pvz_domain.OrderRecord)
 	for _, recordDTO := range recordDTOs {
 		orderRecordModel := transformOrderRecordDtoToModel(&recordDTO)
 		m[recordDTO.OrderID] = append(m[recordDTO.OrderID], *orderRecordModel)
 	}
 
-	var orders []*pvz_model.Order
+	var orders []*pvz_domain.Order
 
 	for _, dto := range orderDTOs {
 		orderModel := transformOrderDtoToModel(&dto)
@@ -137,7 +137,7 @@ func (r *OrderRepo) GetAll(ctx context.Context) ([]*pvz_model.Order, error) {
 	return orders, nil
 }
 
-func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Pagination) ([]*pvz_model.Order, error) {
+func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
 
 	var orderDTOs []orderDTO
 	err := r.db.Select(ctx, &orderDTOs, `
@@ -163,13 +163,13 @@ func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 		return nil, orderRecordsErr
 	}
 
-	m := make(map[int64][]pvz_model.OrderRecord)
+	m := make(map[int64][]pvz_domain.OrderRecord)
 	for _, recordDTO := range recordDTOs {
 		orderRecordModel := transformOrderRecordDtoToModel(&recordDTO)
 		m[recordDTO.OrderID] = append(m[recordDTO.OrderID], *orderRecordModel)
 	}
 
-	var orders []*pvz_model.Order
+	var orders []*pvz_domain.Order
 
 	for _, dto := range orderDTOs {
 		orderModel := transformOrderDtoToModel(&dto)
@@ -180,22 +180,22 @@ func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 	return orders, nil
 }
 
-func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_model.Order, error) {
+func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_domain.Order, error) {
 	if len(ids) == 0 {
-		return []*pvz_model.Order{}, nil
+		return []*pvz_domain.Order{}, nil
 	}
 
 	var orderDTOs []orderDTO
 	err := r.db.Select(ctx, &orderDTOs, `SELECT * FROM orders WHERE id = ANY($1) ORDER BY id ASC`, ids)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return []*pvz_model.Order{}, nil
+			return []*pvz_domain.Order{}, nil
 		}
 		log.Print(err)
 		return nil, err
 	}
 
-	var orders []*pvz_model.Order
+	var orders []*pvz_domain.Order
 
 	for _, dto := range orderDTOs {
 		orders = append(orders, transformOrderDtoToModel(&dto))
@@ -204,7 +204,7 @@ func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_model.Ord
 	return orders, nil
 }
 
-func (r *OrderRepo) GetByID(ctx context.Context, id int64) (*pvz_model.Order, error) {
+func (r *OrderRepo) GetByID(ctx context.Context, id int64) (*pvz_domain.Order, error) {
 	var a orderDTO
 	err := r.db.Get(ctx, &a, "SELECT * FROM orders WHERE id=$1", id)
 	if err != nil {
@@ -220,10 +220,10 @@ func (r *OrderRepo) GetByID(ctx context.Context, id int64) (*pvz_model.Order, er
 func (r *OrderRepo) SeedOrders(ctx context.Context) {
 	now := time.Now()
 
-	history := []pvz_model.OrderRecord{
+	history := []pvz_domain.OrderRecord{
 		{
 			Timestamp:   now.Add(-2 * time.Hour),
-			Status:      pvz_model.OrderStatusReceived,
+			Status:      pvz_domain.OrderStatusReceived,
 			Description: "Получено от курьера",
 		},
 	}
@@ -236,14 +236,14 @@ func (r *OrderRepo) SeedOrders(ctx context.Context) {
 			(recipient_id, expiration_date, delivered_date, refunded_date, returned_date, status, weight, worth)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 			RETURNING id`,
-			58,                             // recipient
-			now.Add(48*time.Hour),          // expiration
-			now.Add(-1*time.Hour),          // delivered_date
-			nil,                            // refunded_date
-			nil,                            // returned_date
-			pvz_model.OrderStatusDelivered, // status
-			1.5,                            // weight
-			2500.0,                         // worth
+			58,                              // recipient
+			now.Add(48*time.Hour),           // expiration
+			now.Add(-1*time.Hour),           // delivered_date
+			nil,                             // refunded_date
+			nil,                             // returned_date
+			pvz_domain.OrderStatusDelivered, // status
+			1.5,                             // weight
+			2500.0,                          // worth
 		).Scan(&orderID)
 
 		if err != nil {

@@ -10,24 +10,10 @@ import (
 	"net/http"
 	"time"
 
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/audit_log"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
-
-type AuditLog struct {
-	Timestamp time.Time `json:"timestamp"`
-
-	RequestID     string `json:"request_id,omitempty"`
-	Method        string `json:"method,omitempty"`
-	Path          string `json:"path,omitempty"`
-	RemoteAddress string `json:"remote_address,omitempty"`
-	UserAgent     string `json:"user_agent,omitempty"`
-
-	StatusResponse int           `json:"status_response,omitempty"`
-	DurationMs     time.Duration `json:"duration_ms,omitempty"`
-
-	Details interface{} `json:"details,omitempty"`
-}
 
 type AuditLogger struct {
 	handler *HTTPHandler
@@ -85,7 +71,7 @@ func (md *AuditLogger) LogRequestResponseAndStatusChangeMiddleware(next http.Han
 			return
 		}
 
-		log := &AuditLog{
+		log := &pvz_domain.AuditLog{
 			Timestamp:      timestamp,
 			RequestID:      uuid.NewString(),
 			Method:         r.Method,
@@ -119,7 +105,7 @@ func (md *AuditLogger) LogRequestResponseMiddleware(next http.Handler) http.Hand
 
 		latency := time.Since(timestamp)
 
-		log := &AuditLog{
+		log := &pvz_domain.AuditLog{
 			Timestamp:      timestamp,
 			RequestID:      uuid.NewString(),
 			Method:         r.Method,

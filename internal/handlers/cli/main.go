@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/handlers/cli/command"
-	pvz_model "github.com/Staspol216/gh1/internal/models/order"
-	pvz_service "github.com/Staspol216/gh1/internal/service"
+	pvz_service "github.com/Staspol216/gh1/internal/service/order"
 )
 
 type CLIHandler struct {
@@ -52,7 +52,7 @@ func (c *CLIHandler) getCommandAndArgs(input string) (string, []string, bool) {
 
 func (app *CLIHandler) handleCommand(v string, args []string) {
 	ctx := context.Background()
-	pagination := &pvz_model.Pagination{
+	pagination := &pvz_domain.Pagination{
 		Offset: 0,
 		Limit:  1000,
 	}
@@ -83,8 +83,8 @@ func (app *CLIHandler) handleCommand(v string, args []string) {
 	}
 }
 
-func ToOrderParams(p *OrderPayload) *pvz_model.OrderParams {
-	return &pvz_model.OrderParams{
+func ToOrderParams(p *OrderPayload) *pvz_domain.OrderParams {
+	return &pvz_domain.OrderParams{
 		RecipientId:    *p.RecipientId,
 		ExpirationDate: *p.ExpirationDate,
 		Weight:         *p.Weight,

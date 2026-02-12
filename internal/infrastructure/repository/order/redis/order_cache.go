@@ -1,4 +1,4 @@
-package pvz_service
+package cache_order_repo
 
 import (
 	"context"
@@ -9,19 +9,14 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	pvz_model "github.com/Staspol216/gh1/internal/models/order"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 )
-
-type OrderRepo interface {
-	GetAll(ctx context.Context) ([]*pvz_model.Order, error)
-	GetByIDs(ctx context.Context, orderIds []int64) ([]*pvz_model.Order, error)
-}
 
 type Cache struct {
 	Rdb *redis.Client
 }
 
-func NewCache() *Cache {
+func New() *Cache {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "",
@@ -46,13 +41,13 @@ func keyForOrder(id interface{}) string {
 
 // GetOrderFromCache tries to get an order from redis and unmarshal it.
 // Returns (*order.Order, nil) on hit, (nil, redis.Nil) on miss, or (nil, err) on error.
-func (cache *Cache) GetOrder(ctx context.Context, id interface{}) (*pvz_model.Order, error) {
+func (cache *Cache) GetOrder(ctx context.Context, id interface{}) (*pvz_domain.Order, error) {
 	key := keyForOrder(id)
 	b, err := cache.Rdb.Get(ctx, key).Bytes()
 	if err != nil {
 		return nil, err
 	}
-	var order pvz_model.Order
+	var order pvz_domain.Order
 	if err := json.Unmarshal(b, &order); err != nil {
 		return nil, err
 	}
@@ -60,7 +55,7 @@ func (cache *Cache) GetOrder(ctx context.Context, id interface{}) (*pvz_model.Or
 }
 
 // SetOrderInCache stores an order in redis. ttl==0 means no expiration.
-func (cache *Cache) SetOrder(ctx context.Context, order *pvz_model.Order, ttl time.Duration) error {
+func (cache *Cache) SetOrder(ctx context.Context, order *pvz_domain.Order, ttl time.Duration) error {
 	key := keyForOrder(order.ID)
 	b, err := json.Marshal(order)
 	if err != nil {
@@ -74,10 +69,10 @@ func (cache *Cache) DeleteOrder(ctx context.Context, orderId int64) error {
 	return err
 }
 
-// PopulateOrdersCache loads all orders from storage and writes them to redis using a pipeline.
+// PopulateOrders loads all orders from storage and writes them to redis using a pipeline.
 // Also builds an index ZSET (orders:idx) for efficient paginated range queries.
 // It honors the provided ctx (should have timeout or be derived from signal context).
-func (cache *Cache) PopulateOrders(ctx context.Context, repo OrderRepo, ttl time.Duration) error {
+func (cache *Cache) PopulateOrders(ctx context.Context, repo pvz_domain.OrderStorager, ttl time.Duration) error {
 	orders, err := repo.GetAll(ctx)
 	if err != nil {
 		return err
@@ -101,7 +96,7 @@ func (cache *Cache) PopulateOrders(ctx context.Context, repo OrderRepo, ttl time
 // GetList returns paginated orders using Redis ZSET index (orders:idx).
 // It fetches order IDs via ZRANGE, then pipelined GETs. Cache misses are filled
 // from the repo and cached for future use.
-func (cache *Cache) GetList(ctx context.Context, pagination *pvz_model.Pagination, repo OrderRepo) ([]*pvz_model.Order, error) {
+func (cache *Cache) GetList(ctx context.Context, pagination *pvz_domain.Pagination, repo pvz_domain.OrderStorager) ([]*pvz_domain.Order, error) {
 	start := int64(pagination.Offset)
 	end := int64(pagination.Offset + pagination.Limit - 1)
 
@@ -109,13 +104,13 @@ func (cache *Cache) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 
 	if err != nil {
 		if err == redis.Nil {
-			return []*pvz_model.Order{}, nil
+			return []*pvz_domain.Order{}, nil
 		}
 		return nil, err
 	}
 
 	if len(idxs) == 0 {
-		return []*pvz_model.Order{}, nil
+		return []*pvz_domain.Order{}, nil
 	}
 
 	keys := make([]string, len(idxs))
@@ -132,7 +127,7 @@ func (cache *Cache) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 		return nil, err
 	}
 
-	result := make([]*pvz_model.Order, len(idxs))
+	result := make([]*pvz_domain.Order, len(idxs))
 	missingPositionById := make(map[int64][]int)
 
 	// Build list
@@ -148,7 +143,7 @@ func (cache *Cache) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 			missingPositionById[id] = append(missingPositionById[id], i)
 			continue
 		}
-		var order pvz_model.Order
+		var order pvz_domain.Order
 		if err := json.Unmarshal([]byte(value), &order); err != nil {
 			id := ids[i]
 			missingPositionById[id] = append(missingPositionById[id], i)
@@ -188,7 +183,7 @@ func (cache *Cache) GetList(ctx context.Context, pagination *pvz_model.Paginatio
 
 // AddOrderToIndex adds an order to the ZSET index. Call this after creating a new order.
 // Score is the order ID for stable ordering.
-func (cache *Cache) AddOrderToIndex(ctx context.Context, order *pvz_model.Order) error {
+func (cache *Cache) AddOrderToIndex(ctx context.Context, order *pvz_domain.Order) error {
 	return cache.Rdb.ZAdd(ctx, "orders:idx", redis.Z{
 		Score:  float64(order.ID),
 		Member: order.ID,

@@ -9,12 +9,15 @@ import (
 	"syscall"
 
 	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
-	db "github.com/Staspol216/gh1/internal/db/postgres"
-	"github.com/Staspol216/gh1/internal/db/tx_manager"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/audit_log"
 	pvz_cli "github.com/Staspol216/gh1/internal/handlers/cli"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
-	psql_order_repo "github.com/Staspol216/gh1/internal/repository/order/postgres"
-	pvz_service "github.com/Staspol216/gh1/internal/service"
+	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
+	psql_audit_log_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/audit_log"
+	pvz_order_storage "github.com/Staspol216/gh1/internal/infrastructure/repository/order"
+	cache_order_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order/redis"
+	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
+	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
 	"github.com/joho/godotenv"
 )
 
@@ -41,8 +44,8 @@ func main() {
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	jobs := make(chan *pvz_http.AuditLog, jobsCount)
-	results := make(chan *pvz_http.AuditLog, jobsCount)
+	jobs := make(chan *pvz_domain.AuditLog, jobsCount)
+	results := make(chan *pvz_domain.AuditLog, jobsCount)
 
 	pool, err := db.NewPool(sigCtx)
 
@@ -52,7 +55,7 @@ func main() {
 
 	txManager := tx_manager.New(pool, sigCtx)
 
-	orderCache := pvz_service.NewCache()
+	orderCache := cache_order_repo.New()
 
 	defer orderCache.Rdb.Close()
 
@@ -62,15 +65,15 @@ func main() {
 
 	db := db.NewDatabase(txManager)
 
-	postgresRepoConfig := &pvz_service.Config{
-		StorageType: pvz_service.StorageTypePostgres,
-		Postgres: &pvz_service.PostgresConfig{
+	postgresRepoConfig := &pvz_order_storage.Config{
+		StorageType: pvz_order_storage.StorageTypePostgres,
+		Postgres: &pvz_order_storage.PostgresConfig{
 			Db:      db,
 			Context: sigCtx,
 		},
 	}
 
-	auditLogRepo := &psql_order_repo.AuditLogRepo{
+	auditLogRepo := &psql_audit_log_repo.AuditLogRepo{
 		Db:      db,
 		Context: sigCtx,
 	}
@@ -87,7 +90,7 @@ func main() {
 		worker.RunAndServe(i)
 	}
 
-	orderStorage, err := pvz_service.NewStorage(postgresRepoConfig)
+	orderStorage, err := pvz_order_storage.New(postgresRepoConfig)
 
 	if err != nil {
 		log.Fatal("pvz.New: %w", err)
@@ -99,7 +102,7 @@ func main() {
 		log.Fatal("PopulateOrdersCache: %w", populateCacheErr)
 	}
 
-	pvzService := pvz_service.New(orderStorage, orderCache, txManager)
+	pvzService := pvz_order_service.New(orderStorage, orderCache, txManager)
 
 	var handler Handler
 

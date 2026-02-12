@@ -6,9 +6,7 @@ import (
 	"sync"
 	"time"
 
-	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
-	pvz_model "github.com/Staspol216/gh1/internal/models/audit_log"
-	psql_order_repo "github.com/Staspol216/gh1/internal/repository/order/postgres"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/audit_log"
 )
 
 type ProcessStrategy = string
@@ -18,13 +16,17 @@ const (
 	SaveToDB ProcessStrategy = "saveToDB"
 )
 
+type AuditLogRepo interface {
+	AddAuditLog(audit_log *pvz_domain.AuditLog) (int64, error)
+}
+
 type Worker struct {
 	ProcessStrategy ProcessStrategy
 	Context         context.Context
-	In              <-chan *pvz_http.AuditLog
-	Out             chan *pvz_http.AuditLog
+	In              <-chan *pvz_domain.AuditLog
+	Out             chan *pvz_domain.AuditLog
 	Wg              *sync.WaitGroup
-	Repo            *psql_order_repo.AuditLogRepo
+	Repo            AuditLogRepo
 }
 
 func (w *Worker) RunAndServe(index int) {
@@ -41,7 +43,7 @@ func (w *Worker) Run(index int) {
 	var timeout <-chan time.Time
 
 	const batchCapacity = 5
-	batch := make([]*pvz_http.AuditLog, 0, batchCapacity)
+	batch := make([]*pvz_domain.AuditLog, 0, batchCapacity)
 
 	fmt.Printf("Worker %d started\n", index)
 
@@ -112,7 +114,7 @@ func (w *Worker) Serve(index int) {
 	}
 }
 
-func (w *Worker) proccess(job *pvz_http.AuditLog) {
+func (w *Worker) proccess(job *pvz_domain.AuditLog) {
 	switch w.ProcessStrategy {
 	case Print:
 		w.printLog(job)
@@ -121,25 +123,25 @@ func (w *Worker) proccess(job *pvz_http.AuditLog) {
 	}
 }
 
-func (w *Worker) printLog(job *pvz_http.AuditLog) {
+func (w *Worker) printLog(job *pvz_domain.AuditLog) {
 	fmt.Println("----------- AUDIT LOG RECORD START -----------")
 	fmt.Printf("%#v\n", job)
 	fmt.Println("----------- AUDIT LOG RECORD END -----------")
 }
 
-func (w *Worker) saveLog(job *pvz_http.AuditLog) {
-	_, err := w.Repo.AddAuditLog((*pvz_model.AuditLog)(job))
+func (w *Worker) saveLog(job *pvz_domain.AuditLog) {
+	_, err := w.Repo.AddAuditLog((*pvz_domain.AuditLog)(job))
 	if err != nil {
 		return
 	}
 	fmt.Println("----------- AUDIT LOG RECORD SAVED -----------")
 }
 
-func (w *Worker) do(job *pvz_http.AuditLog) {
+func (w *Worker) do(job *pvz_domain.AuditLog) {
 	w.Out <- job
 }
 
-func (w *Worker) work(batch []*pvz_http.AuditLog) []*pvz_http.AuditLog {
+func (w *Worker) work(batch []*pvz_domain.AuditLog) []*pvz_domain.AuditLog {
 	count := 0
 
 	for _, job := range batch {

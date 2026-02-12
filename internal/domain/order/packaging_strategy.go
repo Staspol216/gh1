@@ -1,4 +1,4 @@
-package pvz_service
+package pvz_domain
 
 import "errors"
 

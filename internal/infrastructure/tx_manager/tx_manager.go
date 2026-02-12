@@ -3,6 +3,7 @@ package tx_manager
 import (
 	"context"
 
+	pvz_ports "github.com/Staspol216/gh1/internal/ports"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
@@ -62,8 +63,8 @@ func (m *TxManager) beginFunc(opts pgx.TxOptions, fn func(ctxTx context.Context)
 	return tx.Commit(m.context)
 }
 
-func (m *TxManager) GetQueryEngine(ctx context.Context) QueryEngine {
-	v, ok := ctx.Value(txKey).(QueryEngine)
+func (m *TxManager) GetQueryEngine(ctx context.Context) pvz_ports.QueryEngine {
+	v, ok := ctx.Value(txKey).(pvz_ports.QueryEngine)
 	if ok && v != nil {
 		return v
 	}

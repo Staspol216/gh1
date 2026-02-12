@@ -3,12 +3,10 @@ package db
 import (
 	"context"
 
-	"github.com/Staspol216/gh1/internal/db/tx_manager"
-	"github.com/jackc/pgx/v4"
-
-	"github.com/jackc/pgconn"
-
+	pvz_ports "github.com/Staspol216/gh1/internal/ports"
 	"github.com/georgysavva/scany/pgxscan"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4"
 )
 
 type DB interface {
@@ -19,10 +17,10 @@ type DB interface {
 }
 
 type Database struct {
-	tx tx_manager.TransactionManager
+	tx pvz_ports.TransactionManager
 }
 
-func NewDatabase(tx tx_manager.TransactionManager) *Database {
+func NewDatabase(tx pvz_ports.TransactionManager) *Database {
 	return &Database{
 		tx: tx,
 	}

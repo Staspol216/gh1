@@ -1,4 +1,4 @@
-package pvz_model
+package pvz_domain
 
 import (
 	"time"

@@ -1,11 +1,11 @@
-package psql_order_repo
+package psql_audit_log_repo
 
 import (
 	"context"
 	"log"
 
-	db "github.com/Staspol216/gh1/internal/db/postgres"
-	pvz_model "github.com/Staspol216/gh1/internal/models/audit_log"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/audit_log"
+	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
 )
 
 type AuditLogRepo struct {
@@ -13,7 +13,7 @@ type AuditLogRepo struct {
 	Context context.Context
 }
 
-func (r *AuditLogRepo) AddAuditLog(audit_log *pvz_model.AuditLog) (int64, error) {
+func (r *AuditLogRepo) AddAuditLog(audit_log *pvz_domain.AuditLog) (int64, error) {
 	query := `INSERT INTO audit_logs (
 		request_id,
 		timestamp,

@@ -13,8 +13,9 @@ import (
 	"strings"
 	"time"
 
-	pvz_model "github.com/Staspol216/gh1/internal/models/order"
-	pvz_service "github.com/Staspol216/gh1/internal/service"
+	pvz_domain_audit "github.com/Staspol216/gh1/internal/domain/audit_log"
+	pvz_domain_order "github.com/Staspol216/gh1/internal/domain/order"
+	pvz_service "github.com/Staspol216/gh1/internal/service/order"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
@@ -22,15 +23,15 @@ import (
 
 type HTTPHandler struct {
 	pvz     *pvz_service.Pvz
-	jobs    chan<- *AuditLog
+	jobs    chan<- *pvz_domain_audit.AuditLog
 	context context.Context
 }
 
-func New(context context.Context, p *pvz_service.Pvz, j chan<- *AuditLog) *HTTPHandler {
+func New(context context.Context, p *pvz_service.Pvz, j chan<- *pvz_domain_audit.AuditLog) *HTTPHandler {
 	return &HTTPHandler{pvz: p, jobs: j, context: context}
 }
 
-func (h *HTTPHandler) WriteAuditLog(j *AuditLog) {
+func (h *HTTPHandler) WriteAuditLog(j *pvz_domain_audit.AuditLog) {
 	h.jobs <- j
 }
 
@@ -192,7 +193,7 @@ func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
 	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
 
-	pagination := &pvz_model.Pagination{
+	pagination := &pvz_domain_order.Pagination{
 		Offset: offset,
 		Limit:  limit,
 	}
@@ -214,7 +215,7 @@ func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) 
 	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
 	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
 
-	pagination := &pvz_model.Pagination{
+	pagination := &pvz_domain_order.Pagination{
 		Offset: offset,
 		Limit:  limit,
 	}
@@ -236,7 +237,7 @@ func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request)
 	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
 	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
 
-	pagination := &pvz_model.Pagination{
+	pagination := &pvz_domain_order.Pagination{
 		Offset: offset,
 		Limit:  limit,
 	}

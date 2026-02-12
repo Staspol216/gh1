@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	pvz_model "github.com/Staspol216/gh1/internal/models/order"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/go-chi/render"
 )
 
@@ -53,7 +53,7 @@ var ErrNotFound = &ErrResponse{HTTPStatusCode: 404, StatusText: "Resource not fo
 // Order Response
 
 type OrderResponse struct {
-	*pvz_model.Order
+	*pvz_domain.Order
 }
 
 func (rd *OrderResponse) Render(w http.ResponseWriter, r *http.Request) error {
@@ -61,7 +61,7 @@ func (rd *OrderResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func NewOrdersListResponse(orders []*pvz_model.Order) []render.Renderer {
+func NewOrdersListResponse(orders []*pvz_domain.Order) []render.Renderer {
 	list := []render.Renderer{}
 	for _, order := range orders {
 		list = append(list, NewOrderResponse(order))
@@ -69,7 +69,7 @@ func NewOrdersListResponse(orders []*pvz_model.Order) []render.Renderer {
 	return list
 }
 
-func NewOrderResponse(o *pvz_model.Order) *OrderResponse {
+func NewOrderResponse(o *pvz_domain.Order) *OrderResponse {
 	response := &OrderResponse{Order: o}
 	return response
 }
@@ -77,9 +77,9 @@ func NewOrderResponse(o *pvz_model.Order) *OrderResponse {
 // OrderCreateRequest
 
 type OrderCreateRequest struct {
-	Order            *pvz_model.OrderParams `json:"order"`
-	PackagingType    string                 `json:"packagingType"`
-	MembranaIncluded bool                   `json:"membranaIncluded"`
+	Order            *pvz_domain.OrderParams `json:"order"`
+	PackagingType    string                  `json:"packagingType"`
+	MembranaIncluded bool                    `json:"membranaIncluded"`
 }
 
 func (a *OrderCreateRequest) Bind(r *http.Request) error {
