@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/audit_log"
 )
@@ -27,6 +26,7 @@ type Worker struct {
 	Out             chan *pvz_domain.AuditLog
 	Wg              *sync.WaitGroup
 	Repo            AuditLogRepo
+	Debugger        *AuditDebugger
 }
 
 func (w *Worker) RunAndServe(index int) {
@@ -39,59 +39,46 @@ func (w *Worker) RunAndServe(index int) {
 func (w *Worker) Run(index int) {
 	defer w.Wg.Done()
 
-	var timer *time.Timer
-	var timeout <-chan time.Time
+	tm := &WorkerTimerManager{}
 
 	const batchCapacity = 5
 	batch := make([]*pvz_domain.AuditLog, 0, batchCapacity)
 
-	fmt.Printf("Worker %d started\n", index)
+	w.Debugger.logWorkerStarted(index)
 
 	for {
 		select {
 		case <-w.Context.Done():
-			if timer != nil {
-				timer.Stop()
-				timeout = nil
-				timer = nil
+			if tm.isAlive() {
+				tm.clear()
 			}
 			w.work(batch)
-			fmt.Printf("Worker %d finished\n", index)
+			w.Debugger.logWorkerFinished(index)
 			return
-		case <-timeout:
-			fmt.Printf("Worker %d done the jobs after timeout\n", index)
+		case <-tm.timeout:
+			w.Debugger.logWorkerDoneJobAfterTimeout(index)
 			batch = w.work(batch)
-			timer = nil
-			timeout = nil
-		case v := <-w.In:
-			fmt.Printf("Worker %d took the job %s\n", index, v.RequestID)
+			tm.clear()
+		case job := <-w.In:
+			w.Debugger.logWorkerTookJob(index, job.RequestID)
 
-			batch = append(batch, v)
-			fmt.Println(len(batch), "len(batch)")
+			batch = append(batch, job)
+			w.Debugger.logButchCapacity(len(batch))
 
 			if len(batch) >= batchCapacity {
-				if timer != nil {
-					timer.Stop()
-					timeout = nil
-					timer = nil
+				if tm.isAlive() {
+					tm.clear()
 				}
 				batch = w.work(batch)
-				fmt.Printf("Worker %d done the jobs by reaching batch limit\n", index)
+				w.Debugger.logWorkerDoneJobsAfterReachingTimeout(index)
 				continue
 			}
 
-			if timer == nil {
-				timer = time.NewTimer(5 * time.Second)
-				timeout = timer.C
+			if !tm.isAlive() {
+				tm.start()
 			} else {
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				timer.Reset(5 * time.Second)
-				timeout = timer.C
+				tm.drain()
+				tm.reset()
 			}
 		}
 	}
@@ -100,15 +87,15 @@ func (w *Worker) Run(index int) {
 func (w *Worker) Serve(index int) {
 	defer w.Wg.Done()
 
-	fmt.Printf("Output worker %d started\n", index)
+	w.Debugger.logOutputWorkerStarted(index)
 
 	for {
 		select {
 		case <-w.Context.Done():
-			fmt.Printf("Output worker %d finished\n", index)
+			w.Debugger.logOutputWorkerFinished(index)
 			return
 		case j := <-w.Out:
-			fmt.Printf("Output worker %d get job for process\n", index)
+			w.Debugger.logOutputWorkerGetJobForProcess(index)
 			w.proccess(j)
 		}
 	}
@@ -124,9 +111,9 @@ func (w *Worker) proccess(job *pvz_domain.AuditLog) {
 }
 
 func (w *Worker) printLog(job *pvz_domain.AuditLog) {
-	fmt.Println("----------- AUDIT LOG RECORD START -----------")
+	fmt.Println("----------- AUDIT LOG RECORD -----------")
 	fmt.Printf("%#v\n", job)
-	fmt.Println("----------- AUDIT LOG RECORD END -----------")
+	fmt.Println("----------------------------------------")
 }
 
 func (w *Worker) saveLog(job *pvz_domain.AuditLog) {
@@ -134,7 +121,7 @@ func (w *Worker) saveLog(job *pvz_domain.AuditLog) {
 	if err != nil {
 		return
 	}
-	fmt.Println("----------- AUDIT LOG RECORD SAVED -----------")
+	w.Debugger.logAuditLogRecordSaved()
 }
 
 func (w *Worker) do(job *pvz_domain.AuditLog) {

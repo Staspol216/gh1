@@ -79,6 +79,7 @@ func main() {
 	}
 
 	for i := 0; i < workersCount; i++ {
+		debugger := &pvz_worker_audit.AuditDebugger{}
 		worker := &pvz_worker_audit.Worker{
 			ProcessStrategy: pvz_worker_audit.SaveToDB,
 			Context:         sigCtx,
@@ -86,6 +87,7 @@ func main() {
 			Out:             results,
 			Wg:              wg,
 			Repo:            auditLogRepo,
+			Debugger:        debugger,
 		}
 		worker.RunAndServe(i)
 	}
