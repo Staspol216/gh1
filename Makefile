@@ -20,7 +20,7 @@ DB_SSLMODE ?= disable
 
 POSTGRES_SETUP_TEST ?= user=$(DB_USER) password=$(DB_PASSWORD) dbname=$(DB_NAME) host=$(DB_HOST) port=$(DB_PORT) sslmode=$(DB_SSLMODE)
 
-MIGRATION_FOLDER=$(CURDIR)/internal/db/migrations
+MIGRATION_FOLDER=$(CURDIR)/internal/infrastructure/migrations
 
 .PHONY: migration-create
 migration-create:

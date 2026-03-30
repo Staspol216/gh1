@@ -13,26 +13,22 @@ import (
 	"strings"
 	"time"
 
-	pvz_domain_audit "github.com/Staspol216/gh1/internal/domain/audit_log"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_domain_order "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_service "github.com/Staspol216/gh1/internal/service/order"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	"github.com/google/uuid"
 )
 
 type HTTPHandler struct {
 	pvz     *pvz_service.Pvz
-	jobs    chan<- *pvz_domain_audit.AuditLog
 	context context.Context
 }
 
-func New(context context.Context, p *pvz_service.Pvz, j chan<- *pvz_domain_audit.AuditLog) *HTTPHandler {
-	return &HTTPHandler{pvz: p, jobs: j, context: context}
-}
-
-func (h *HTTPHandler) WriteAuditLog(j *pvz_domain_audit.AuditLog) {
-	h.jobs <- j
+func New(context context.Context, p *pvz_service.Pvz) *HTTPHandler {
+	return &HTTPHandler{pvz: p, context: context}
 }
 
 func (h *HTTPHandler) Serve() error {
@@ -46,25 +42,17 @@ func (h *HTTPHandler) Serve() error {
 		w.Write([]byte("pong"))
 	})
 
-	auditLogger := &AuditLogger{h}
-
 	r.Route("/orders", func(r chi.Router) {
-		r.With(func(handler http.Handler) http.Handler {
-			return auditLogger.LogRequestResponseMiddleware(handler)
-		}).With(paginate).Get("/", h.ListOrders)
+		r.With(paginate).Get("/", h.ListOrders)
 
-		r.With(func(handler http.Handler) http.Handler {
-			return auditLogger.LogRequestResponseMiddleware(handler)
-		}).With(logger).Post("/", h.CreateOrder)
+		r.With(logger).Post("/", h.CreateOrder)
 
-		r.With(func(handler http.Handler) http.Handler {
-			return auditLogger.LogRequestResponseAndStatusChangeMiddleware(handler)
-		}).With(logger).Patch("/", h.UpdateOrders)
+		r.With(logger).Patch("/", h.UpdateOrders)
 
 		r.Route("/{orderID}", func(r chi.Router) {
 			r.Use(OrderCtx)
 
-			r.Get("/", h.GetOrderByID)
+			r.With(logger).Get("/", h.GetOrderByID)
 
 			r.With(logger).Delete("/", h.DeleteOrder)
 		})
@@ -286,13 +274,15 @@ func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderId, err := h.pvz.AcceptFromCourier(r.Context(), data.Order, data.PackagingType, data.MembranaIncluded)
+	task := h.createOutboxTask(r)
+
+	orderId, err := h.pvz.AcceptFromCourier(r.Context(), task, data.Order, data.PackagingType, data.MembranaIncluded)
 
 	if err != nil {
 		render.Render(w, r, ErrInternal(err))
 	}
 
-	renderError := render.Render(w, r, NewOrderIDResponse(orderId))
+	renderError := render.Render(w, r, NewOrderIDResponse(*orderId))
 	if renderError != nil {
 		render.Render(w, r, ErrRender(renderError))
 	}
@@ -305,7 +295,9 @@ func (h *HTTPHandler) UpdateOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.pvz.ServeRecipient(r.Context(), data.OrderIDs, data.RecipientID, data.Action)
+	task := h.createOutboxTask(r)
+
+	err := h.pvz.ServeRecipient(r.Context(), task, data.OrderIDs, data.RecipientID, data.Action)
 	if err != nil {
 		render.Render(w, r, ErrInternal(err))
 	}
@@ -332,4 +324,22 @@ func (h *HTTPHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 	if renderErr != nil {
 		render.Render(w, r, ErrRender(renderErr))
 	}
+}
+
+func (h *HTTPHandler) createOutboxTask(r *http.Request) *pvz_domain.OrderOutboxTask {
+	requestID := uuid.New().String()
+
+	createdAt := time.Now()
+
+	log := &pvz_domain.OrderOutboxTask{
+		Status:        pvz_domain.Created,
+		CreatedAt:     createdAt,
+		RequestID:     requestID,
+		Method:        r.Method,
+		Path:          r.URL.Path,
+		RemoteAddress: r.RemoteAddr,
+		UserAgent:     r.UserAgent(),
+	}
+
+	return log
 }

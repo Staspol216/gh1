@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	psql_order_outbox_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
 	pvz_ports "github.com/Staspol216/gh1/internal/ports"
 )
 
@@ -40,13 +41,15 @@ type OrdersCache interface {
 }
 
 type Pvz struct {
+	outbox    psql_order_outbox_repo.OrderOutboxRepo
 	storage   pvz_domain.OrderStorager
 	cache     OrdersCache
 	txManager pvz_ports.TransactionManager
 }
 
-func New(storage pvz_domain.OrderStorager, cache OrdersCache, txManager pvz_ports.TransactionManager) *Pvz {
+func New(storage pvz_domain.OrderStorager, outbox psql_order_outbox_repo.OrderOutboxRepo, cache OrdersCache, txManager pvz_ports.TransactionManager) *Pvz {
 	return &Pvz{
+		outbox,
 		storage,
 		cache,
 		txManager,
@@ -94,7 +97,7 @@ func (s *Pvz) GetOrdersByIDs(ctx context.Context, ordersIds []int64) ([]*pvz_dom
 	return orders, nil
 }
 
-func (p *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (int64, error) {
+func (p *Pvz) AcceptFromCourier(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (*int64, error) {
 
 	var order *pvz_domain.Order
 
@@ -108,11 +111,20 @@ func (p *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderPa
 			return err
 		}
 
-		p.storage.AddHistoryRecord(ctxTx, pvz_domain.NewOrderRecordReceived(), id)
+		orderRecord := pvz_domain.NewOrderRecordReceived()
+
+		p.storage.AddHistoryRecord(ctxTx, orderRecord, id)
 
 		result, err := p.storage.GetByID(ctxTx, id)
 		if err != nil {
 			return err
+		}
+
+		outboxTask.SetOrderStatusDetails(orderRecord)
+
+		_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+		if outboxErr != nil {
+			return outboxErr
 		}
 
 		order = result
@@ -120,10 +132,14 @@ func (p *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderPa
 		return nil
 	})
 
+	if txError != nil {
+		return nil, txError
+	}
+
 	p.cache.SetOrder(ctx, order, 0)
 	p.cache.AddOrderToIndex(ctx, order)
 
-	return order.ID, txError
+	return &order.ID, txError
 }
 
 func (p *Pvz) ReturnToCourier(ctx context.Context, orderId int64) error {
@@ -152,16 +168,16 @@ func (p *Pvz) ReturnToCourier(ctx context.Context, orderId int64) error {
 	return txError
 }
 
-func (p *Pvz) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId int64, action string) error {
+func (p *Pvz) ServeRecipient(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, ordersIds []int64, recipientId int64, action string) error {
 
 	switch action {
 	case Deliver.String():
-		err := p.DeliverOrders(ctx, ordersIds, recipientId)
+		err := p.DeliverOrders(ctx, outboxTask, ordersIds, recipientId)
 		if err != nil {
 			return err
 		}
 	case Refund.String():
-		err := p.RefundOrders(ctx, ordersIds, recipientId)
+		err := p.RefundOrders(ctx, outboxTask, ordersIds, recipientId)
 		if err != nil {
 			return err
 		}
@@ -172,7 +188,7 @@ func (p *Pvz) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId
 	return nil
 }
 
-func (p *Pvz) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
+func (p *Pvz) RefundOrders(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, ordersIds []int64, recipientId int64) error {
 
 	for _, orderId := range ordersIds {
 
@@ -192,29 +208,41 @@ func (p *Pvz) RefundOrders(ctx context.Context, ordersIds []int64, recipientId i
 
 			if order.IsDelivered() && order.CanBeRefunded() {
 				order.Refund()
-				p.storage.AddHistoryRecord(ctxTx, pvz_domain.NewOrderRecordRefunded(), order.ID)
+
+				orderRecord := pvz_domain.NewOrderRecordRefunded()
+				p.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID)
+
 				err := p.storage.Update(ctxTx, order)
+				if err != nil {
+					return err
+				}
+
+				outboxTask.SetOrderStatusDetails(orderRecord)
+
+				_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+				if outboxErr != nil {
+					return outboxErr
+				}
+
 				updatedOrder = order
-				return err
 			} else {
 				return fmt.Errorf("Order %d can not be refunded to recipient because refund time has expired or already refunded by recipient", order.ID)
 			}
 
+			return nil
 		})
-
-		if txError == nil {
-			p.cache.SetOrder(ctx, updatedOrder, 0)
-		}
 
 		if txError != nil {
 			return txError
 		}
+
+		p.cache.SetOrder(ctx, updatedOrder, 0)
 	}
 
 	return nil
 }
 
-func (p *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
+func (p *Pvz) DeliverOrders(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, ordersIds []int64, recipientId int64) error {
 
 	for _, orderId := range ordersIds {
 
@@ -239,25 +267,51 @@ func (p *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId 
 			if order.IsExpired() {
 				order.Expire()
 				err := p.storage.Update(ctxTx, order)
-				p.storage.AddHistoryRecord(ctxTx, pvz_domain.NewOrderRecordExpired(), order.ID)
+
+				orderRecord := pvz_domain.NewOrderRecordExpired()
+
+				p.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID)
+				if err != nil {
+					return err
+				}
+
+				outboxTask.SetOrderStatusDetails(orderRecord)
+
+				_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+				if outboxErr != nil {
+					return outboxErr
+				}
+
 				updatedOrder = order
-				return err
 			} else {
 				order.Deliver()
 				err := p.storage.Update(ctxTx, order)
-				p.storage.AddHistoryRecord(ctxTx, pvz_domain.NewOrderRecordDelivered(), order.ID)
-				updatedOrder = order
-				return err
-			}
-		})
 
-		if txError == nil {
-			p.cache.SetOrder(ctx, updatedOrder, 0)
-		}
+				orderRecord := pvz_domain.NewOrderRecordDelivered()
+
+				p.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID)
+				if err != nil {
+					return err
+				}
+
+				outboxTask.SetOrderStatusDetails(orderRecord)
+
+				_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+				if outboxErr != nil {
+					return outboxErr
+				}
+
+				updatedOrder = order
+			}
+
+			return nil
+		})
 
 		if txError != nil {
 			return txError
 		}
+
+		p.cache.SetOrder(ctx, updatedOrder, 0)
 	}
 
 	return nil

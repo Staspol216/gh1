@@ -7,15 +7,16 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
+	"github.com/IBM/sarama"
 	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/audit_log"
-	pvz_cli "github.com/Staspol216/gh1/internal/handlers/cli"
+	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
-	psql_audit_log_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/audit_log"
 	pvz_order_storage "github.com/Staspol216/gh1/internal/infrastructure/repository/order"
 	cache_order_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order/redis"
+	psql_order_outbox_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
 	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
 	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
 	"github.com/joho/godotenv"
@@ -31,8 +32,6 @@ func main() {
 		workersCount = 2
 	)
 
-	isHTTP := true
-
 	wg := &sync.WaitGroup{}
 
 	if err := godotenv.Load(); err != nil {
@@ -43,9 +42,6 @@ func main() {
 	defer cancel()
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
-	jobs := make(chan *pvz_domain.AuditLog, jobsCount)
-	results := make(chan *pvz_domain.AuditLog, jobsCount)
 
 	pool, err := db.NewPool(sigCtx)
 
@@ -73,24 +69,65 @@ func main() {
 		},
 	}
 
-	auditLogRepo := &psql_audit_log_repo.AuditLogRepo{
-		Db:      db,
-		Context: sigCtx,
+	orderOutboxRepo := &psql_order_outbox_repo.OrderOutboxRepo{
+		Db: db,
 	}
 
-	for i := 0; i < workersCount; i++ {
-		debugger := &pvz_worker_audit.AuditDebugger{}
-		worker := &pvz_worker_audit.Worker{
-			ProcessStrategy: pvz_worker_audit.SaveToDB,
-			Context:         sigCtx,
-			In:              jobs,
-			Out:             results,
-			Wg:              wg,
-			Repo:            auditLogRepo,
-			Debugger:        debugger,
-		}
-		worker.RunAndServe(i)
+	tasks := make(chan *pvz_domain.OrderOutboxTask, jobsCount)
+	defer close(tasks)
+
+	worker := &pvz_worker_audit.OutboxWorker{
+		Context:   sigCtx,
+		Repo:      orderOutboxRepo,
+		Tasks:     tasks,
+		TxManager: txManager,
 	}
+
+	wg.Go(func() {
+		worker.Run(1 * time.Second)
+	})
+
+	producer, err := sarama.NewSyncProducer([]string{"localhost:9092"}, nil)
+	if err != nil {
+		log.Fatalf("Failed to create producer: %v", err)
+	}
+	defer producer.Close()
+
+	// Создание консьюмера Kafka
+	consumer, err := sarama.NewConsumer([]string{"localhost:9092"}, nil)
+	if err != nil {
+		log.Fatalf("Failed to create consumer: %v", err)
+	}
+	defer consumer.Close()
+
+	// Подписка на партицию "order_audit_logs" в Kafka
+	partConsumer, err := consumer.ConsumePartition("order_audit_logs", 0, sarama.OffsetNewest)
+	if err != nil {
+		log.Fatalf("Failed to consume partition: %v", err)
+	}
+	defer partConsumer.Close()
+
+	debugger := &pvz_worker_audit.AuditDebugger{}
+	writer := pvz_worker_audit.OrderAuditLogPartitionWriter{
+		Context:    sigCtx,
+		Producer:   producer,
+		Tasks:      tasks,
+		OutboxRepo: orderOutboxRepo,
+		Debugger:   debugger,
+	}
+
+	reader := pvz_worker_audit.OrderAuditLogPartitionReader{
+		Context:   sigCtx,
+		Partition: partConsumer,
+	}
+
+	wg.Go(func() {
+		writer.Run()
+	})
+
+	wg.Go(func() {
+		reader.Run()
+	})
 
 	orderStorage, err := pvz_order_storage.New(postgresRepoConfig)
 
@@ -104,28 +141,17 @@ func main() {
 		log.Fatal("PopulateOrdersCache: %w", populateCacheErr)
 	}
 
-	pvzService := pvz_order_service.New(orderStorage, orderCache, txManager)
+	pvzService := pvz_order_service.New(orderStorage, *orderOutboxRepo, orderCache, txManager)
 
-	var handler Handler
+	handler := pvz_http.New(sigCtx, pvzService)
 
-	if isHTTP {
-		handler = pvz_http.New(sigCtx, pvzService, jobs)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := handler.Serve(); err != nil {
-				log.Printf("server shutdown error: %v", err)
-			}
-		}()
-	} else {
-		handler = pvz_cli.New(pvzService)
-		handler.Serve()
-	}
+	wg.Go(func() {
+		if err := handler.Serve(); err != nil {
+			log.Printf("server shutdown error: %v", err)
+		}
+	})
 
 	wg.Wait()
-
-	close(results)
-	close(jobs)
 
 	fmt.Println("Main done")
 }
