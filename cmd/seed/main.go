@@ -7,14 +7,9 @@ import (
 	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
 	psql_order_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order/postgres"
 	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("no .env file loaded")
-	}
 
 	context, cancel := context.WithCancel(context.Background())
 	defer cancel()

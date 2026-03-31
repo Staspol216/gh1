@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -19,7 +20,6 @@ import (
 	psql_order_outbox_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
 	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
 	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
-	"github.com/joho/godotenv"
 )
 
 type Handler interface {
@@ -33,10 +33,6 @@ func main() {
 	)
 
 	wg := &sync.WaitGroup{}
-
-	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file loaded")
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -87,14 +83,16 @@ func main() {
 		worker.Run(1 * time.Second)
 	})
 
-	producer, err := sarama.NewSyncProducer([]string{"localhost:9092"}, nil)
+	kafkaAddr := os.Getenv("KAFKA_BROKERS")
+
+	producer, err := sarama.NewSyncProducer([]string{kafkaAddr}, nil)
 	if err != nil {
 		log.Fatalf("Failed to create producer: %v", err)
 	}
 	defer producer.Close()
 
 	// Создание консьюмера Kafka
-	consumer, err := sarama.NewConsumer([]string{"localhost:9092"}, nil)
+	consumer, err := sarama.NewConsumer([]string{kafkaAddr}, nil)
 	if err != nil {
 		log.Fatalf("Failed to create consumer: %v", err)
 	}
