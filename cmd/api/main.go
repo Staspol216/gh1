@@ -91,6 +91,15 @@ func main() {
 	}
 	defer producer.Close()
 
+	debugger := &pvz_worker_audit.AuditDebugger{}
+	writer := pvz_worker_audit.OrderAuditLogPartitionWriter{
+		Context:    sigCtx,
+		Producer:   producer,
+		Tasks:      tasks,
+		OutboxRepo: orderOutboxRepo,
+		Debugger:   debugger,
+	}
+
 	// Создание консьюмера Kafka
 	consumer, err := sarama.NewConsumer([]string{kafkaAddr}, nil)
 	if err != nil {
@@ -104,15 +113,6 @@ func main() {
 		log.Fatalf("Failed to consume partition: %v", err)
 	}
 	defer partConsumer.Close()
-
-	debugger := &pvz_worker_audit.AuditDebugger{}
-	writer := pvz_worker_audit.OrderAuditLogPartitionWriter{
-		Context:    sigCtx,
-		Producer:   producer,
-		Tasks:      tasks,
-		OutboxRepo: orderOutboxRepo,
-		Debugger:   debugger,
-	}
 
 	reader := pvz_worker_audit.OrderAuditLogPartitionReader{
 		Context:   sigCtx,
@@ -133,21 +133,21 @@ func main() {
 		log.Fatal("pvz.New: %w", err)
 	}
 
-	populateCacheErr := orderCache.PopulateOrders(sigCtx, orderStorage, 0)
+	populateOrdersErr := orderCache.PopulateOrders(sigCtx, orderStorage, 0)
 
-	if populateCacheErr != nil {
-		log.Fatal("PopulateOrdersCache: %w", populateCacheErr)
+	if populateOrdersErr != nil {
+		log.Fatal("PopulateOrders: %w", populateOrdersErr)
 	}
 
 	pvzService := pvz_order_service.New(orderStorage, *orderOutboxRepo, orderCache, txManager)
 
 	handler := pvz_http.New(sigCtx, pvzService)
 
-	wg.Go(func() {
-		if err := handler.Serve(); err != nil {
-			log.Printf("server shutdown error: %v", err)
-		}
-	})
+	serveErr := handler.Serve()
+
+	if serveErr != nil {
+		log.Printf("handler.Serve: %v", serveErr)
+	}
 
 	wg.Wait()
 

@@ -75,15 +75,14 @@ func (h *HTTPHandler) Serve() error {
 		Handler: r,
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("http server error: %v", err)
-		}
-	}()
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("http server error: %v", err)
+	}
 
 	log.Println("HTTP server started on", addr)
 
 	<-h.context.Done()
+
 	log.Println("Shutdown signal received, shutting down HTTP server...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
