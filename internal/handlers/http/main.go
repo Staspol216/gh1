@@ -67,8 +67,8 @@ func (h *HTTPHandler) Serve() error {
 	})
 
 	host := os.Getenv("BACKEND_HOST")
-	port := os.Getenv("BACKEND_PORT")
-	addr := fmt.Sprintf("%s:%s", host, port)
+	httpPort := os.Getenv("BACKEND_HTTP_PORT")
+	addr := fmt.Sprintf("%s:%s", host, httpPort)
 
 	srv := &http.Server{
 		Addr:    addr,

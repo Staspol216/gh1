@@ -1,0 +1,85 @@
+syntax="proto3";
+
+package orders.proto;
+
+option go_package = "orders.proto";
+
+import "google/protobuf/timestamp.proto";
+
+service OrdersService {
+    rpc GetOrders(GetOrdersRequest) returns (GetOrdersResponse);
+    rpc UpdateOrders(UpdateOrdersRequest) returns (UpdateOrdersResponse);
+    rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+    rpc DeleteOrder(DeleteOrderRequest) returns (DeleteOrderResponse);
+}
+
+enum OrderStatus {
+  RECEVIED = 0;
+  RETURNED = 1;
+  DELIVERED = 2;
+  REFUNDED = 3;
+  STRAGE_ENDED = 4;
+  NONE = 5;
+}
+
+message OrderRecord {
+    google.protobuf.Timestamp timestamp = 1;
+    OrderStatus status = 2;
+    string description = 3; 
+}
+
+message Order {
+    int64 id = 1;
+    int64 recipient_id = 2;
+    google.protobuf.Timestamp expiration_date = 3;
+    google.protobuf.Timestamp delivered_date = 4;
+    google.protobuf.Timestamp refunded_date = 5;
+    OrderStatus status = 6;
+    repeated OrderRecord history = 7;
+    double Weight = 8;
+    double Worth = 9;
+}
+
+
+message GetOrdersRequest {
+    int64 limit = 1;
+    int64 offset = 2;
+}
+
+message GetOrdersResponse {
+    repeated Order orders = 1;
+}
+
+message CreateOrderRequest {
+    message OrderParams {
+        int64 recipient_id = 1;
+        google.protobuf.Timestamp expiration_date = 2;
+        double weight = 3;
+        double worth = 4;
+    }
+    OrderParams order = 1;
+    string packaging_type = 2;
+    bool membrana_included = 3;
+}
+
+message CreateOrderResponse {
+    int64 order_id = 1;
+}
+
+message UpdateOrdersRequest {
+    repeated int64 order_ids = 1;
+    int64 recipient_id = 2;
+    string action = 3;
+}
+
+message UpdateOrdersResponse {
+
+}
+
+message DeleteOrderRequest {
+    int64 order_id = 1;
+}
+
+message DeleteOrderResponse {
+    
+}

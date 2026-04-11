@@ -1,3 +1,5 @@
+LOCAL_BIN:=$(CURDIR)/bin
+
 BINARY_NAME = myapp
 OUTPUT_DIR = bin
 
@@ -33,6 +35,11 @@ migration-up:
 .PHONY: migration-down
 migration-down:
 	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" down
+	
+.PHONY: generate-orders-api
+generate-orders-api:
+	mkdir -p pkg/api
+	protoc --go_out=pkg/api --go-grpc_out=pkg/api cmd/api/orders.proto
 
 .PHONY: help
 help: 

@@ -226,7 +226,7 @@ func (p *Pvz) RefundOrders(ctx context.Context, outboxTask *pvz_domain.OrderOutb
 
 				updatedOrder = order
 			} else {
-				return fmt.Errorf("Order %d can not be refunded to recipient because refund time has expired or already refunded by recipient", order.ID)
+				return fmt.Errorf("Order %d can not be refunded to recipient because refund time has expired or it has already refunded by recipient", order.ID)
 			}
 
 			return nil

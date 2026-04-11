@@ -8,6 +8,14 @@ import (
 	"github.com/go-chi/render"
 )
 
+type OrderRequestMetadata struct {
+	RequestID     string `json:"request_id,omitempty"`
+	Method        string `json:"method,omitempty"`
+	Path          string `json:"path,omitempty"`
+	RemoteAddress string `json:"remote_address,omitempty"`
+	UserAgent     string `json:"user_agent,omitempty"`
+}
+
 type ErrResponse struct {
 	Err            error  `json:"-"`               // low-level runtime error
 	HTTPStatusCode int    `json:"-"`               // http response status code

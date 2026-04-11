@@ -14,19 +14,23 @@ services:
       redis:
         condition: service_started
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=test
-      - DB_PASSWORD=test
-      - DB_NAME=test
-      - DB_SSLMODE=disable
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - BACKEND_HOST=0.0.0.0
-      - BACKEND_PORT=8080
-      - KAFKA_BROKERS=kafka:9092
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_INSIGHT_PORT: ${REDIS_INSIGHT_PORT}
+      BACKEND_HOST: ${BACKEND_HOST}
+      BACKEND_HTTP_PORT: ${BACKEND_HTTP_PORT}
+      BACKEND_GRPC_PORT: ${BACKEND_GRPC_PORT}
+      KAFKA_HOST: ${KAFKA_HOST}
+      KAFKA_PORT: ${KAFKA_PORT}
     ports:
-      - "8080:8080"
+      - "${BACKEND_HTTP_PORT}:${BACKEND_HTTP_PORT}"
+      - "${BACKEND_GRPC_PORT}:${BACKEND_GRPC_PORT}"
     networks:
       - default
 
@@ -51,13 +55,13 @@ services:
     depends_on:
       - zookeeper
     environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_PORT}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_PORT}
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     ports:
-      - "9092:9092"
+      - "${KAFKA_PORT}:${KAFKA_PORT}"
 
   postgres:
     image: postgres:latest
@@ -66,19 +70,19 @@ services:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:${DB_PORT}"
     volumes:
       - pgdata:/var/lib/postgresql
 
   redis:
     image: redis:latest
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:${REDIS_PORT}"
 
   redisinsight:
     image: redis/redisinsight:latest
     ports:
-      - "5540:5540"
+      - "${REDIS_INSIGHT_PORT}:${REDIS_INSIGHT_PORT}"
     depends_on:
       - redis
 

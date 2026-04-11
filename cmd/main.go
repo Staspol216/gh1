@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/IBM/sarama"
 	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	pvz_grpc "github.com/Staspol216/gh1/internal/handlers/grpc"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
 	pvz_order_storage "github.com/Staspol216/gh1/internal/infrastructure/repository/order"
@@ -20,6 +22,8 @@ import (
 	psql_order_outbox_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
 	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
 	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
+	orders_proto "github.com/Staspol216/gh1/pkg/api/orders.proto"
+	"google.golang.org/grpc"
 )
 
 type Handler interface {
@@ -83,7 +87,9 @@ func main() {
 		worker.Run(1 * time.Second)
 	})
 
-	kafkaAddr := os.Getenv("KAFKA_BROKERS")
+	kafkaHost := os.Getenv("KAFKA_HOST")
+	kafkaPort := os.Getenv("KAFKA_PORT")
+	kafkaAddr := fmt.Sprintf("%s:%s", kafkaHost, kafkaPort)
 
 	producer, err := sarama.NewSyncProducer([]string{kafkaAddr}, nil)
 	if err != nil {
@@ -141,12 +147,33 @@ func main() {
 
 	pvzService := pvz_order_service.New(orderStorage, *orderOutboxRepo, orderCache, txManager)
 
-	handler := pvz_http.New(sigCtx, pvzService)
+	httpHandler := pvz_http.New(sigCtx, pvzService)
 
-	serveErr := handler.Serve()
+	grpcPort := os.Getenv("BACKEND_GRPC_PORT")
+	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
 
-	if serveErr != nil {
-		log.Printf("handler.Serve: %v", serveErr)
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+
+	grcpHandler := pvz_grpc.New(sigCtx, pvzService)
+
+	orders_proto.RegisterOrdersServiceServer(grpcServer, grcpHandler)
+
+	log.Printf("Server listening at %v", tcpListener.Addr())
+
+	grpcServeErr := grpcServer.Serve(tcpListener)
+
+	if grpcServeErr != nil {
+		log.Fatalf("Failed to grpcServer.Serve: %v", grpcServeErr)
+	}
+
+	httpServeErr := httpHandler.Serve()
+
+	if httpServeErr != nil {
+		log.Printf("Failed to httpHandler.Serve: %v", httpServeErr)
 	}
 
 	wg.Wait()
