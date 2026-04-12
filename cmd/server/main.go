@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/IBM/sarama"
 	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
+	pvz_config "github.com/Staspol216/gh1/internal/config"
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_grpc "github.com/Staspol216/gh1/internal/handlers/grpc"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
@@ -23,6 +23,7 @@ import (
 	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
 	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
 	orders_proto "github.com/Staspol216/gh1/pkg/api/orders.proto"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"google.golang.org/grpc"
 )
 
@@ -36,6 +37,12 @@ func main() {
 		workersCount = 2
 	)
 
+	cfg, err := pvz_config.Load()
+
+	if err != nil {
+		log.Fatalf("Load config error: %v", err)
+	}
+
 	wg := &sync.WaitGroup{}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -43,7 +50,7 @@ func main() {
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := db.NewPool(sigCtx)
+	pool, err := pgxpool.Connect(ctx, cfg.DBConnString())
 
 	if err != nil {
 		log.Fatal(err)
@@ -51,7 +58,7 @@ func main() {
 
 	txManager := tx_manager.New(pool, sigCtx)
 
-	orderCache := cache_order_repo.New()
+	orderCache := cache_order_repo.New(cfg)
 
 	defer orderCache.Rdb.Close()
 
@@ -87,11 +94,7 @@ func main() {
 		worker.Run(1 * time.Second)
 	})
 
-	kafkaHost := os.Getenv("KAFKA_HOST")
-	kafkaPort := os.Getenv("KAFKA_PORT")
-	kafkaAddr := fmt.Sprintf("%s:%s", kafkaHost, kafkaPort)
-
-	producer, err := sarama.NewSyncProducer([]string{kafkaAddr}, nil)
+	producer, err := sarama.NewSyncProducer([]string{cfg.KafkaAddr()}, nil)
 	if err != nil {
 		log.Fatalf("Failed to create producer: %v", err)
 	}
@@ -106,14 +109,12 @@ func main() {
 		Debugger:   debugger,
 	}
 
-	// Создание консьюмера Kafka
-	consumer, err := sarama.NewConsumer([]string{kafkaAddr}, nil)
+	consumer, err := sarama.NewConsumer([]string{cfg.KafkaAddr()}, nil)
 	if err != nil {
 		log.Fatalf("Failed to create consumer: %v", err)
 	}
 	defer consumer.Close()
 
-	// Подписка на партицию "order_audit_logs" в Kafka
 	partConsumer, err := consumer.ConsumePartition("order_audit_logs", 0, sarama.OffsetNewest)
 	if err != nil {
 		log.Fatalf("Failed to consume partition: %v", err)
@@ -149,8 +150,7 @@ func main() {
 
 	httpHandler := pvz_http.New(sigCtx, pvzService)
 
-	grpcPort := os.Getenv("BACKEND_GRPC_PORT")
-	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
+	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.BackendGRPCPort))
 
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
@@ -162,21 +162,27 @@ func main() {
 
 	orders_proto.RegisterOrdersServiceServer(grpcServer, grcpHandler)
 
-	log.Printf("Server listening at %v", tcpListener.Addr())
+	log.Printf("gRPC Server listening at %v", tcpListener.Addr())
 
-	grpcServeErr := grpcServer.Serve(tcpListener)
+	wg.Go(func() {
+		if err := grpcServer.Serve(tcpListener); err != nil {
+			log.Printf("gRPC server error: %v", err)
+		}
+	})
 
-	if grpcServeErr != nil {
-		log.Fatalf("Failed to grpcServer.Serve: %v", grpcServeErr)
-	}
+	wg.Go(func() {
+		if err := httpHandler.Serve(cfg); err != nil {
+			log.Printf("HTTP server error: %v", err)
+		}
+	})
 
-	httpServeErr := httpHandler.Serve()
+	<-sigCtx.Done()
 
-	if httpServeErr != nil {
-		log.Printf("Failed to httpHandler.Serve: %v", httpServeErr)
-	}
+	log.Println("Shutdown signal received, gracefully shutting down GRPC server...")
+
+	grpcServer.GracefulStop()
 
 	wg.Wait()
 
-	fmt.Println("Main done")
+	fmt.Println("✓ All servers shut down successfully")
 }

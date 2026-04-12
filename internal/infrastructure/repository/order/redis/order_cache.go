@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
+	pvz_config "github.com/Staspol216/gh1/internal/config"
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 )
 
@@ -17,12 +17,10 @@ type Cache struct {
 	Rdb *redis.Client
 }
 
-func New() *Cache {
-	host := os.Getenv("REDIS_HOST")
-	port := os.Getenv("REDIS_PORT")
+func New(config *pvz_config.Config) *Cache {
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", host, port),
+		Addr:     config.RedisAddr(),
 		Password: "",
 		DB:       0,
 	})

@@ -1,0 +1,63 @@
+version: "2"
+
+services:
+  postgres:
+    image: postgres:latest
+    env_file:
+      - ./.env.local
+    environment:
+      POSTGRES_DB: test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+  redis:
+    image: redis:latest
+    env_file:
+      - ./.env.local
+    ports:
+      - "${REDIS_PORT}:6379"
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    env_file:
+      - ./.env.local
+    ports:
+      - "${REDIS_INSIGHT_PORT}:5540"
+    depends_on:
+      - redis
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_PORT}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${KAFKA_PORT}
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "${KAFKA_PORT}:${KAFKA_PORT}"
+
+volumes:
+  pgdata:

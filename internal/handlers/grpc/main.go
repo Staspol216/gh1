@@ -7,7 +7,6 @@ import (
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
 	orders_proto "github.com/Staspol216/gh1/pkg/api/orders.proto"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -49,12 +48,7 @@ func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateO
 
 	task := s.createOutboxTask()
 
-	spew.Dump(req.GetOrder().GetWeight())
-	spew.Dump(req.GetOrder().GetWorth())
-
 	order := mapToDomainOrderParams(req.GetOrder())
-
-	spew.Dump(order)
 
 	orderId, err := s.service.AcceptFromCourier(s.context, task, order, req.GetPackagingType(), req.GetMembranaIncluded())
 

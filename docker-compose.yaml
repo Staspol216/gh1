@@ -13,21 +13,8 @@ services:
         condition: service_started
       redis:
         condition: service_started
-    environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-      DB_SSLMODE: ${DB_SSLMODE}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_INSIGHT_PORT: ${REDIS_INSIGHT_PORT}
-      BACKEND_HOST: ${BACKEND_HOST}
-      BACKEND_HTTP_PORT: ${BACKEND_HTTP_PORT}
-      BACKEND_GRPC_PORT: ${BACKEND_GRPC_PORT}
-      KAFKA_HOST: ${KAFKA_HOST}
-      KAFKA_PORT: ${KAFKA_PORT}
+    env_file:
+      - ./.env
     ports:
       - "${BACKEND_HTTP_PORT}:${BACKEND_HTTP_PORT}"
       - "${BACKEND_GRPC_PORT}:${BACKEND_GRPC_PORT}"

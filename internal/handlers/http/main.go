@@ -4,15 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	pvz_config "github.com/Staspol216/gh1/internal/config"
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_domain_order "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_service "github.com/Staspol216/gh1/internal/service/order"
@@ -31,7 +30,7 @@ func New(context context.Context, p *pvz_service.Pvz) *HTTPHandler {
 	return &HTTPHandler{pvz: p, context: context}
 }
 
-func (h *HTTPHandler) Serve() error {
+func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -66,28 +65,34 @@ func (h *HTTPHandler) Serve() error {
 		r.Get("/", h.ListOrders)
 	})
 
-	host := os.Getenv("BACKEND_HOST")
-	httpPort := os.Getenv("BACKEND_HTTP_PORT")
-	addr := fmt.Sprintf("%s:%s", host, httpPort)
-
 	srv := &http.Server{
-		Addr:    addr,
+		Addr:    cfg.HTTPAddr(),
 		Handler: r,
 	}
 
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Printf("http server error: %v", err)
-	}
+	log.Println("HTTP server starting on", cfg.HTTPAddr())
 
-	log.Println("HTTP server started on", addr)
+	// Start server in goroutine so we can listen for shutdown signal
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
 
+	// Wait for shutdown signal
 	<-h.context.Done()
 
-	log.Println("Shutdown signal received, shutting down HTTP server...")
+	log.Println("Shutdown signal received, gracefully shutting down HTTP server...")
 
+	// Graceful shutdown with 5 second timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
+
+	return nil
 }
 
 type ctxKey string
