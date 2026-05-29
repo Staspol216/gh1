@@ -80,18 +80,16 @@ func main() {
 		Db: db,
 	}
 
-	tasks := make(chan *pvz_domain.OrderOutboxTask, jobsCount)
+	tasks := make(chan []pvz_domain.OrderOutboxTask, jobsCount)
 	defer close(tasks)
 
-	worker := &pvz_worker_audit.OutboxWorker{
-		Context:   sigCtx,
-		Repo:      orderOutboxRepo,
-		Tasks:     tasks,
-		TxManager: txManager,
+	outboxWorker := &pvz_worker_audit.OutboxWorker{
+		Repo:  orderOutboxRepo,
+		Tasks: tasks,
 	}
 
 	wg.Go(func() {
-		worker.Run(1 * time.Second)
+		outboxWorker.Run(sigCtx, 5*time.Second)
 	})
 
 	producer, err := sarama.NewSyncProducer([]string{cfg.KafkaAddr()}, nil)
@@ -100,13 +98,11 @@ func main() {
 	}
 	defer producer.Close()
 
-	debugger := &pvz_worker_audit.AuditDebugger{}
-	writer := pvz_worker_audit.OrderAuditLogPartitionWriter{
+	writer := pvz_worker_audit.OrderAuditLogProducer{
 		Context:    sigCtx,
 		Producer:   producer,
 		Tasks:      tasks,
 		OutboxRepo: orderOutboxRepo,
-		Debugger:   debugger,
 	}
 
 	consumer, err := sarama.NewConsumer([]string{cfg.KafkaAddr()}, nil)
@@ -121,7 +117,7 @@ func main() {
 	}
 	defer partConsumer.Close()
 
-	reader := pvz_worker_audit.OrderAuditLogPartitionReader{
+	reader := pvz_worker_audit.OrderAuditLogPartitionConsumer{
 		Context:   sigCtx,
 		Partition: partConsumer,
 	}

@@ -45,26 +45,33 @@ func (r *OrderOutboxRepo) AddTask(ctx context.Context, audit_log *pvz_domain.Ord
 	return id, err
 }
 
-func (r *OrderOutboxRepo) GetNewestUnprocessedTask(ctx context.Context) (*pvz_domain.OrderOutboxTask, error) {
-	var task pvz_domain.OrderOutboxTask
+func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error) {
+	var tasks []pvz_domain.OrderOutboxTask
 
-	err := r.Db.Get(ctx, &task, `SELECT * FROM orders_statuses_outbox WHERE status = 'created' ORDER BY created_at ASC LIMIT 1;`)
+	err := r.Db.Select(ctx, &tasks, `
+	WITH picked AS (
+		SELECT * FROM orders_statuses_outbox
+		WHERE status = 'created' 
+		ORDER BY created_at ASC 
+		LIMIT 100
+		FOR UPDATE SKIP LOCKED
+	)
+	UPDATE orders_statuses_outbox AS o
+	SET status = 'processing', updated_at = NOW()
+	FROM picked
+	WHERE o.id = picked.id
+	RETURNING
+		o.id,
+		o.status,
+		o.updated_at,
+		o.created_at;
+	`)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &task, nil
-}
-
-func (r *OrderOutboxRepo) MarkTaskAsProcessing(ctx context.Context, id int64) error {
-	_, err := r.Db.Exec(ctx, `
-        UPDATE orders_statuses_outbox
-        SET status = 'processing', updated_at = NOW()
-        WHERE id = $1;
-    `, id)
-
-	return err
+	return tasks, nil
 }
 
 func (r *OrderOutboxRepo) MarkTaskAsFailed(ctx context.Context, id int64) error {

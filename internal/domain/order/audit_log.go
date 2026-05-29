@@ -5,7 +5,7 @@ import "time"
 type OrderOutboxTaskStatus = string
 
 const (
-	Processing OrderOutboxTaskStatus = "received"
+	Processing OrderOutboxTaskStatus = "processing"
 	Created    OrderOutboxTaskStatus = "created"
 	Failed     OrderOutboxTaskStatus = "failed"
 )

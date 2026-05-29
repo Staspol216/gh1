@@ -13,60 +13,37 @@ import (
 )
 
 type AuditLogRepo interface {
-	GetNewestUnprocessedTask(ctx context.Context) (*pvz_domain.OrderOutboxTask, error)
-	MarkTaskAsProcessing(ctx context.Context, id int64) error
+	LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error)
 	MarkTaskAsFailed(ctx context.Context, id int64) error
 	DeleteTasks(ctx context.Context, ids []int64) error
 	DeleteTask(ctx context.Context, id int64) error
 }
 
-type OrderAuditLogPartitionWriter struct {
+type OrderAuditLogProducer struct {
 	Context    context.Context
 	Producer   sarama.SyncProducer
-	Tasks      <-chan *pvz_domain.OrderOutboxTask
+	Tasks      <-chan []pvz_domain.OrderOutboxTask
 	OutboxRepo AuditLogRepo
-	Debugger   *AuditDebugger
 }
 
-func (w *OrderAuditLogPartitionWriter) Run() {
-
-	tm := &WorkerTimerManager{}
-
-	const batchCapacity = 5
-	batch := make([]*pvz_domain.OrderOutboxTask, 0, batchCapacity)
-
-	w.Debugger.logWorkerStarted(1)
+func (w *OrderAuditLogProducer) Run() {
 
 	for {
 		select {
-		case task, ok := <-w.Tasks:
+		case tasksBatch, ok := <-w.Tasks:
 			if !ok {
 				log.Println("Tasks channel closed, exiting writer")
 				return
 			}
-			w.Debugger.logWorkerTookJob(1, task.RequestID)
-			batch = append(batch, task)
-			w.Debugger.logButchCapacity(len(batch))
 
-			if len(batch) >= batchCapacity {
-				if tm.isAlive() {
-					tm.clear()
-				}
-				batch = w.work(batch)
-				w.Debugger.logWorkerDoneJobsAfterReachingTimeout(1)
-				continue
+			err := w.work(tasksBatch)
+
+			if err != nil {
+				log.Println(fmt.Errorf("w.work: %w", err))
 			}
 
-			if !tm.isAlive() {
-				tm.start()
-			} else {
-				tm.drain()
-				tm.reset()
-			}
-		case <-tm.timeout:
-			w.Debugger.logWorkerDoneJobAfterTimeout(1)
-			batch = w.work(batch)
-			tm.clear()
+			fmt.Println("Worker process jobs")
+			continue
 		case <-w.Context.Done():
 			log.Printf("Writer was finished by context done")
 			return
@@ -74,19 +51,14 @@ func (w *OrderAuditLogPartitionWriter) Run() {
 	}
 }
 
-func (w *OrderAuditLogPartitionWriter) work(tasks []*pvz_domain.OrderOutboxTask) []*pvz_domain.OrderOutboxTask {
-
-	count := 0
-
-	messages := make([]*sarama.ProducerMessage, 0, len(tasks))
-	taskIDMap := make(map[*sarama.ProducerMessage]*pvz_domain.OrderOutboxTask)
+func (w *OrderAuditLogProducer) work(tasks []pvz_domain.OrderOutboxTask) error {
 
 	for _, task := range tasks {
 
 		requestID := uuid.New().String()
 		bytes, err := json.Marshal(task)
 		if err != nil {
-			log.Printf("Failed to marshal JSON")
+			log.Printf("Failed to marshal JSON for task %d: %v", *task.ID, err)
 			continue
 		}
 
@@ -96,70 +68,31 @@ func (w *OrderAuditLogPartitionWriter) work(tasks []*pvz_domain.OrderOutboxTask)
 			Value: sarama.ByteEncoder(bytes),
 		}
 
-		messages = append(messages, msg)
-		taskIDMap[msg] = task
+		partition, offset, err := w.Producer.SendMessage(msg)
 
-		count++
-	}
-
-	maxRetries := 3
-	var err error
-	for i := range maxRetries {
-		if w.Context.Err() != nil {
-			log.Printf("Context cancelled, aborting batch send")
-			return tasks
-		}
-		err = w.Producer.SendMessages(messages)
-		if err == nil {
-			ids := make([]int64, len(tasks))
-
-			for _, task := range tasks {
-				ids = append(ids, *task.ID)
-			}
-
-			w.OutboxRepo.DeleteTasks(w.Context, ids)
-			return tasks[count:]
-		}
-		// If some messages failed, Sarama returns a ProducerErrors slice
-		producerErrors, ok := err.(sarama.ProducerErrors)
-		if ok {
-			for _, perr := range producerErrors {
-				log.Printf("Retry %d: Failed to send message to Kafka: %v", i+1, perr.Err)
-			}
-		} else {
-			log.Printf("Retry %d: Failed to send batch to Kafka: %v", i+1, err)
-		}
-	}
-
-	producerErrors, ok := err.(sarama.ProducerErrors)
-	if ok {
-		for _, perr := range producerErrors {
-			task, found := taskIDMap[perr.Msg]
-			if found {
-				if ferr := w.OutboxRepo.MarkTaskAsFailed(w.Context, *task.ID); ferr != nil {
-					log.Printf("MarkTaskAsFailed for task %d: %v", *task.ID, ferr)
-				}
-			}
-		}
-	} else {
-		// If not a ProducerErrors, mark all as failed
-		for _, msg := range messages {
-			task := taskIDMap[msg]
+		if err != nil {
+			log.Printf("Failed to send message to Kafka for task %d: %v", *task.ID, err)
 			if ferr := w.OutboxRepo.MarkTaskAsFailed(w.Context, *task.ID); ferr != nil {
 				log.Printf("MarkTaskAsFailed for task %d: %v", *task.ID, ferr)
 			}
+			continue
+		}
+
+		if ferr := w.OutboxRepo.DeleteTask(w.Context, *task.ID); ferr != nil {
+			log.Printf("Failed to delete task %d after successful send (partition: %d, offset: %d): %v", *task.ID, partition, offset, ferr)
+			continue
 		}
 	}
 
-	return tasks[count:]
+	return nil
 }
 
-type OrderAuditLogPartitionReader struct {
+type OrderAuditLogPartitionConsumer struct {
 	Context   context.Context
 	Partition sarama.PartitionConsumer
 }
 
-func (r *OrderAuditLogPartitionReader) Run() {
+func (r *OrderAuditLogPartitionConsumer) Run() {
 	for {
 		select {
 		// Чтение сообщения из Kafka
@@ -180,7 +113,7 @@ func (r *OrderAuditLogPartitionReader) Run() {
 	}
 }
 
-func (w *OrderAuditLogPartitionReader) log(job *sarama.ConsumerMessage) {
+func (w *OrderAuditLogPartitionConsumer) log(job *sarama.ConsumerMessage) {
 	fmt.Println("----------- AUDIT LOG RECORD -----------")
 	var task pvz_domain.OrderOutboxTask
 	if err := json.Unmarshal(job.Value, &task); err != nil {
