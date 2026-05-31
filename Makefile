@@ -20,7 +20,7 @@ DB_PASSWORD ?= test
 DB_NAME ?= test
 DB_SSLMODE ?= disable
 
-POSTGRES_SETUP_TEST ?= user=$(DB_USER) password=$(DB_PASSWORD) dbname=$(DB_NAME) host=$(DB_HOST) port=$(DB_PORT) sslmode=$(DB_SSLMODE)
+GOOSE_DBSTRING ?= user=$(DB_USER) password=$(DB_PASSWORD) dbname=$(DB_NAME) host=$(DB_HOST) port=$(DB_PORT) sslmode=$(DB_SSLMODE)
 
 MIGRATION_FOLDER=$(CURDIR)/internal/infrastructure/migrations
 
@@ -30,11 +30,11 @@ migration-create:
 
 .PHONY: migration-up
 migration-up:
-	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" up
+	goose -dir "$(MIGRATION_FOLDER)" postgres "$(GOOSE_DBSTRING)" up
 
 .PHONY: migration-down
 migration-down:
-	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" down
+	goose -dir "$(MIGRATION_FOLDER)" postgres "$(GOOSE_DBSTRING)" down
 	
 .PHONY: generate-orders-api
 generate-orders-api:

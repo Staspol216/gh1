@@ -33,8 +33,7 @@ type Handler interface {
 
 func main() {
 	const (
-		jobsCount    = 5
-		workersCount = 2
+		jobsCount = 5
 	)
 
 	cfg, err := pvz_config.Load()
@@ -66,18 +65,18 @@ func main() {
 		log.Fatal(redisPingErr)
 	}
 
-	db := db.NewDatabase(txManager)
+	database := db.NewDatabase(txManager)
 
 	postgresRepoConfig := &pvz_order_storage.Config{
 		StorageType: pvz_order_storage.StorageTypePostgres,
 		Postgres: &pvz_order_storage.PostgresConfig{
-			Db:      db,
+			Db:      database,
 			Context: sigCtx,
 		},
 	}
 
 	orderOutboxRepo := &psql_order_outbox_repo.OrderOutboxRepo{
-		Db: db,
+		Db: database,
 	}
 
 	tasks := make(chan []pvz_domain.OrderOutboxTask, jobsCount)
@@ -89,7 +88,7 @@ func main() {
 	}
 
 	wg.Go(func() {
-		outboxWorker.Run(sigCtx, 5*time.Second)
+		outboxWorker.Run(sigCtx, 60*time.Second)
 	})
 
 	producer, err := sarama.NewSyncProducer([]string{cfg.KafkaAddr()}, nil)

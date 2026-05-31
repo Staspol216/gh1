@@ -7,7 +7,6 @@ import (
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
 	orders_proto "github.com/Staspol216/gh1/pkg/api/orders.proto"
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -46,11 +45,9 @@ func (s *GrpcHandler) GetOrders(ctx context.Context, req *orders_proto.GetOrders
 
 func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateOrderRequest) (*orders_proto.CreateOrderResponse, error) {
 
-	task := s.createOutboxTask()
-
 	order := mapToDomainOrderParams(req.GetOrder())
 
-	orderId, err := s.service.AcceptFromCourier(s.context, task, order, req.GetPackagingType(), req.GetMembranaIncluded())
+	orderId, err := s.service.AcceptFromCourier(s.context, order, req.GetPackagingType(), req.GetMembranaIncluded())
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
@@ -63,9 +60,7 @@ func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateO
 
 func (s *GrpcHandler) UpdateOrders(ctx context.Context, req *orders_proto.UpdateOrdersRequest) (*orders_proto.UpdateOrdersResponse, error) {
 
-	task := s.createOutboxTask()
-
-	err := s.service.ServeRecipient(s.context, task, req.GetOrderIds(), req.GetRecipientId(), req.GetAction())
+	err := s.service.ServeRecipient(s.context, req.GetOrderIds(), req.GetRecipientId(), req.GetAction())
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
@@ -86,14 +81,12 @@ func (s *GrpcHandler) DeleteOrder(ctx context.Context, req *orders_proto.DeleteO
 }
 
 func (s *GrpcHandler) createOutboxTask() *pvz_domain.OrderOutboxTask {
-	requestID := uuid.New().String()
 
 	createdAt := time.Now()
 
 	log := &pvz_domain.OrderOutboxTask{
 		Status:    pvz_domain.Created,
 		CreatedAt: createdAt,
-		RequestID: requestID,
 	}
 
 	return log

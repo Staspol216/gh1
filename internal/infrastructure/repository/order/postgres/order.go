@@ -81,7 +81,17 @@ func (r *OrderRepo) Delete(ctx context.Context, orderId int64) error {
 }
 
 func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_domain.Order) error {
-	query := `UPDATE orders SET recipient_id=$1, expiration_date=$2, delivered_date=$3, refunded_date=$4, returned_date=$5, status=$6, weight=$7, worth=$8 WHERE id=$9 RETURNING id;`
+	query := `UPDATE orders SET 
+                  recipient_id=$1, 
+                  expiration_date=$2, 
+                  delivered_date=$3, 
+                  refunded_date=$4, 
+                  returned_date=$5, 
+                  status=$6, 
+                  weight=$7,
+                  worth=$8 
+              WHERE id=$9 
+              RETURNING id;`
 
 	row := r.db.ExecQueryRow(ctx, query,
 		updatedOrder.RecipientID,

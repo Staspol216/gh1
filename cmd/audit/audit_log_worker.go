@@ -58,7 +58,7 @@ func (w *OrderAuditLogProducer) work(tasks []pvz_domain.OrderOutboxTask) error {
 		requestID := uuid.New().String()
 		bytes, err := json.Marshal(task)
 		if err != nil {
-			log.Printf("Failed to marshal JSON for task %d: %v", *task.ID, err)
+			log.Printf("Failed to marshal JSON for task %d: %v", task.ID, err)
 			continue
 		}
 
@@ -71,15 +71,15 @@ func (w *OrderAuditLogProducer) work(tasks []pvz_domain.OrderOutboxTask) error {
 		partition, offset, err := w.Producer.SendMessage(msg)
 
 		if err != nil {
-			log.Printf("Failed to send message to Kafka for task %d: %v", *task.ID, err)
-			if ferr := w.OutboxRepo.MarkTaskAsFailed(w.Context, *task.ID); ferr != nil {
-				log.Printf("MarkTaskAsFailed for task %d: %v", *task.ID, ferr)
+			log.Printf("Failed to send message to Kafka for task %d: %v", task.ID, err)
+			if ferr := w.OutboxRepo.MarkTaskAsFailed(w.Context, task.ID); ferr != nil {
+				log.Printf("MarkTaskAsFailed for task %d: %v", task.ID, ferr)
 			}
 			continue
 		}
 
-		if ferr := w.OutboxRepo.DeleteTask(w.Context, *task.ID); ferr != nil {
-			log.Printf("Failed to delete task %d after successful send (partition: %d, offset: %d): %v", *task.ID, partition, offset, ferr)
+		if ferr := w.OutboxRepo.DeleteTask(w.Context, task.ID); ferr != nil {
+			log.Printf("Failed to delete task %d after successful send (partition: %d, offset: %d): %v", task.ID, partition, offset, ferr)
 			continue
 		}
 	}

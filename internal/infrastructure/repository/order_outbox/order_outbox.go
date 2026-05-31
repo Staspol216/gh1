@@ -13,28 +13,21 @@ type OrderOutboxRepo struct {
 }
 
 func (r *OrderOutboxRepo) AddTask(ctx context.Context, audit_log *pvz_domain.OrderOutboxTask) (int64, error) {
-	query := `INSERT INTO orders_statuses_outbox (
-		request_id,
+	query := `
+	INSERT INTO orders_statuses_outbox (
 		status,
 		created_at,
-		updated_at,
-		method,
-		path,
-		remote_address,
-        user_agent,
-        order_status_details   
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id;`
+		order_status,
+		description,
+		timestamp
+	) VALUES ($1, $2, $3, $4, $5) RETURNING id;`
 
 	row := r.Db.ExecQueryRow(ctx, query,
-		audit_log.RequestID,
 		audit_log.Status,
 		audit_log.CreatedAt,
-		audit_log.UpdatedAt,
-		audit_log.Method,
-		audit_log.Path,
-		audit_log.RemoteAddress,
-		audit_log.UserAgent,
-		audit_log.OrderStatusDetails,
+		audit_log.Order_status,
+		audit_log.Description,
+		audit_log.Timestamp,
 	)
 
 	var id int64
@@ -48,7 +41,7 @@ func (r *OrderOutboxRepo) AddTask(ctx context.Context, audit_log *pvz_domain.Ord
 func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error) {
 	var tasks []pvz_domain.OrderOutboxTask
 
-	err := r.Db.Select(ctx, &tasks, `
+	query := `
 	WITH picked AS (
 		SELECT * FROM orders_statuses_outbox
 		WHERE status = 'created' 
@@ -57,15 +50,16 @@ func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOu
 		FOR UPDATE SKIP LOCKED
 	)
 	UPDATE orders_statuses_outbox AS o
-	SET status = 'processing', updated_at = NOW()
+	SET status = 'processing'
 	FROM picked
 	WHERE o.id = picked.id
 	RETURNING
 		o.id,
 		o.status,
-		o.updated_at,
 		o.created_at;
-	`)
+	`
+
+	err := r.Db.Select(ctx, &tasks, query)
 
 	if err != nil {
 		return nil, err
@@ -77,7 +71,7 @@ func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOu
 func (r *OrderOutboxRepo) MarkTaskAsFailed(ctx context.Context, id int64) error {
 	_, err := r.Db.Exec(ctx, `
         UPDATE orders_statuses_outbox
-        SET status = 'failed', updated_at = NOW()
+        SET status = 'failed'
         WHERE id = $1;
     `, id)
 

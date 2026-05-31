@@ -97,7 +97,7 @@ func (s *Pvz) GetOrdersByIDs(ctx context.Context, ordersIds []int64) ([]*pvz_dom
 	return orders, nil
 }
 
-func (p *Pvz) AcceptFromCourier(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (*int64, error) {
+func (p *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (*int64, error) {
 
 	var order *pvz_domain.Order
 
@@ -120,9 +120,15 @@ func (p *Pvz) AcceptFromCourier(ctx context.Context, outboxTask *pvz_domain.Orde
 			return err
 		}
 
-		outboxTask.SetOrderStatusDetails(orderRecord)
+		task := &pvz_domain.OrderOutboxTask{
+			Status:       pvz_domain.Created,
+			CreatedAt:    time.Now(),
+			Order_status: orderRecord.Status,
+			Description:  orderRecord.Description,
+			Timestamp:    orderRecord.Timestamp,
+		}
 
-		_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+		_, outboxErr := p.outbox.AddTask(ctxTx, task)
 		if outboxErr != nil {
 			return outboxErr
 		}
@@ -168,16 +174,16 @@ func (p *Pvz) ReturnToCourier(ctx context.Context, orderId int64) error {
 	return txError
 }
 
-func (p *Pvz) ServeRecipient(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, ordersIds []int64, recipientId int64, action string) error {
+func (p *Pvz) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId int64, action string) error {
 
 	switch action {
 	case Deliver.String():
-		err := p.DeliverOrders(ctx, outboxTask, ordersIds, recipientId)
+		err := p.DeliverOrders(ctx, ordersIds, recipientId)
 		if err != nil {
 			return err
 		}
 	case Refund.String():
-		err := p.RefundOrders(ctx, outboxTask, ordersIds, recipientId)
+		err := p.RefundOrders(ctx, ordersIds, recipientId)
 		if err != nil {
 			return err
 		}
@@ -188,7 +194,7 @@ func (p *Pvz) ServeRecipient(ctx context.Context, outboxTask *pvz_domain.OrderOu
 	return nil
 }
 
-func (p *Pvz) RefundOrders(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, ordersIds []int64, recipientId int64) error {
+func (p *Pvz) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
 
 	for _, orderId := range ordersIds {
 
@@ -217,9 +223,15 @@ func (p *Pvz) RefundOrders(ctx context.Context, outboxTask *pvz_domain.OrderOutb
 					return err
 				}
 
-				outboxTask.SetOrderStatusDetails(orderRecord)
+				job := &pvz_domain.OrderOutboxTask{
+					Status:       pvz_domain.Created,
+					CreatedAt:    time.Now(),
+					Order_status: orderRecord.Status,
+					Description:  orderRecord.Description,
+					Timestamp:    orderRecord.Timestamp,
+				}
 
-				_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+				_, outboxErr := p.outbox.AddTask(ctxTx, job)
 				if outboxErr != nil {
 					return outboxErr
 				}
@@ -242,7 +254,7 @@ func (p *Pvz) RefundOrders(ctx context.Context, outboxTask *pvz_domain.OrderOutb
 	return nil
 }
 
-func (p *Pvz) DeliverOrders(ctx context.Context, outboxTask *pvz_domain.OrderOutboxTask, ordersIds []int64, recipientId int64) error {
+func (p *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
 
 	for _, orderId := range ordersIds {
 
@@ -275,9 +287,15 @@ func (p *Pvz) DeliverOrders(ctx context.Context, outboxTask *pvz_domain.OrderOut
 					return err
 				}
 
-				outboxTask.SetOrderStatusDetails(orderRecord)
+				task := &pvz_domain.OrderOutboxTask{
+					Status:       pvz_domain.Created,
+					CreatedAt:    time.Now(),
+					Order_status: orderRecord.Status,
+					Description:  orderRecord.Description,
+					Timestamp:    orderRecord.Timestamp,
+				}
 
-				_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+				_, outboxErr := p.outbox.AddTask(ctxTx, task)
 				if outboxErr != nil {
 					return outboxErr
 				}
@@ -294,9 +312,15 @@ func (p *Pvz) DeliverOrders(ctx context.Context, outboxTask *pvz_domain.OrderOut
 					return err
 				}
 
-				outboxTask.SetOrderStatusDetails(orderRecord)
+				task := &pvz_domain.OrderOutboxTask{
+					Status:       pvz_domain.Created,
+					CreatedAt:    time.Now(),
+					Order_status: orderRecord.Status,
+					Description:  orderRecord.Description,
+					Timestamp:    orderRecord.Timestamp,
+				}
 
-				_, outboxErr := p.outbox.AddTask(ctxTx, outboxTask)
+				_, outboxErr := p.outbox.AddTask(ctxTx, task)
 				if outboxErr != nil {
 					return outboxErr
 				}

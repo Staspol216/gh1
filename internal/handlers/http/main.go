@@ -12,13 +12,11 @@ import (
 	"time"
 
 	pvz_config "github.com/Staspol216/gh1/internal/config"
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_domain_order "github.com/Staspol216/gh1/internal/domain/order"
 	pvz_service "github.com/Staspol216/gh1/internal/service/order"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 )
 
 type HTTPHandler struct {
@@ -278,9 +276,7 @@ func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task := h.createOutboxTask(r)
-
-	orderId, err := h.pvz.AcceptFromCourier(r.Context(), task, data.Order, data.PackagingType, data.MembranaIncluded)
+	orderId, err := h.pvz.AcceptFromCourier(r.Context(), data.Order, data.PackagingType, data.MembranaIncluded)
 
 	if err != nil {
 		render.Render(w, r, ErrInternal(err))
@@ -299,9 +295,7 @@ func (h *HTTPHandler) UpdateOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task := h.createOutboxTask(r)
-
-	err := h.pvz.ServeRecipient(r.Context(), task, data.OrderIDs, data.RecipientID, data.Action)
+	err := h.pvz.ServeRecipient(r.Context(), data.OrderIDs, data.RecipientID, data.Action)
 	if err != nil {
 		render.Render(w, r, ErrInternal(err))
 	}
@@ -328,22 +322,4 @@ func (h *HTTPHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 	if renderErr != nil {
 		render.Render(w, r, ErrRender(renderErr))
 	}
-}
-
-func (h *HTTPHandler) createOutboxTask(r *http.Request) *pvz_domain.OrderOutboxTask {
-	requestID := uuid.New().String()
-
-	createdAt := time.Now()
-
-	log := &pvz_domain.OrderOutboxTask{
-		Status:        pvz_domain.Created,
-		CreatedAt:     createdAt,
-		RequestID:     requestID,
-		Method:        r.Method,
-		Path:          r.URL.Path,
-		RemoteAddress: r.RemoteAddr,
-		UserAgent:     r.UserAgent(),
-	}
-
-	return log
 }
