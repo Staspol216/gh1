@@ -92,28 +92,28 @@ type OrderAuditLogPartitionConsumer struct {
 	Partition sarama.PartitionConsumer
 }
 
-func (r *OrderAuditLogPartitionConsumer) Run() {
+func (c *OrderAuditLogPartitionConsumer) Run() {
 	for {
 		select {
 		// Чтение сообщения из Kafka
-		case msg, ok := <-r.Partition.Messages():
+		case msg, ok := <-c.Partition.Messages():
 			if !ok {
 				log.Println("Channel closed, exiting goroutine")
 				return
 			}
-			r.log(msg)
-		case err, ok := <-r.Partition.Errors():
+			c.log(msg)
+		case err, ok := <-c.Partition.Errors():
 			if ok {
 				log.Printf("Kafka consumer error: %v", err)
 			}
-		case <-r.Context.Done():
+		case <-c.Context.Done():
 			log.Printf("Reader finished by context done")
 			return
 		}
 	}
 }
 
-func (w *OrderAuditLogPartitionConsumer) log(job *sarama.ConsumerMessage) {
+func (c *OrderAuditLogPartitionConsumer) log(job *sarama.ConsumerMessage) {
 	fmt.Println("----------- AUDIT LOG RECORD -----------")
 	var task pvz_domain.OrderOutboxTask
 	if err := json.Unmarshal(job.Value, &task); err != nil {

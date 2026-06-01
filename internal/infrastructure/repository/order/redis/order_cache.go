@@ -3,6 +3,7 @@ package cache_order_repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -41,7 +42,7 @@ func keyForOrder(id interface{}) string {
 	return fmt.Sprintf("order:%v", id)
 }
 
-// GetOrderFromCache tries to get an order from redis and unmarshal it.
+// GetOrder tries to get an order from redis and unmarshal it.
 // Returns (*order.Order, nil) on hit, (nil, redis.Nil) on miss, or (nil, err) on error.
 func (cache *Cache) GetOrder(ctx context.Context, id interface{}) (*pvz_domain.Order, error) {
 	key := keyForOrder(id)
@@ -56,7 +57,7 @@ func (cache *Cache) GetOrder(ctx context.Context, id interface{}) (*pvz_domain.O
 	return &order, nil
 }
 
-// SetOrderInCache stores an order in redis. ttl==0 means no expiration.
+// SetOrder stores an order in redis. ttl==0 means no expiration.
 func (cache *Cache) SetOrder(ctx context.Context, order *pvz_domain.Order, ttl time.Duration) error {
 	key := keyForOrder(order.ID)
 	b, err := json.Marshal(order)
@@ -99,13 +100,13 @@ func (cache *Cache) PopulateOrders(ctx context.Context, repo pvz_domain.OrderSto
 // It fetches order IDs via ZRANGE, then pipelined GETs. Cache misses are filled
 // from the repo and cached for future use.
 func (cache *Cache) GetList(ctx context.Context, pagination *pvz_domain.Pagination, repo pvz_domain.OrderStorager) ([]*pvz_domain.Order, error) {
-	start := int64(pagination.Offset)
-	end := int64(pagination.Offset + pagination.Limit - 1)
+	start := pagination.Offset
+	end := pagination.Offset + pagination.Limit - 1
 
 	idxs, err := cache.Rdb.ZRange(ctx, "orders:idx", start, end).Result()
 
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return []*pvz_domain.Order{}, nil
 		}
 		return nil, err
@@ -125,7 +126,7 @@ func (cache *Cache) GetList(ctx context.Context, pagination *pvz_domain.Paginati
 	}
 
 	values, err := cache.Rdb.MGet(ctx, keys...).Result()
-	if err != nil && err != redis.Nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		return nil, err
 	}
 

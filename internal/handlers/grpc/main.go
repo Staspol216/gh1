@@ -13,14 +13,12 @@ import (
 )
 
 type GrpcHandler struct {
-	context context.Context
 	service *pvz_order_service.Pvz
 	orders_proto.UnimplementedOrdersServiceServer
 }
 
-func New(context context.Context, p *pvz_order_service.Pvz) *GrpcHandler {
+func New(p *pvz_order_service.Pvz) *GrpcHandler {
 	return &GrpcHandler{
-		context: context,
 		service: p,
 	}
 }
@@ -47,7 +45,7 @@ func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateO
 
 	order := mapToDomainOrderParams(req.GetOrder())
 
-	orderId, err := s.service.AcceptFromCourier(s.context, order, req.GetPackagingType(), req.GetMembranaIncluded())
+	orderId, err := s.service.AcceptFromCourier(ctx, order, req.GetPackagingType(), req.GetMembranaIncluded())
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
@@ -60,7 +58,7 @@ func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateO
 
 func (s *GrpcHandler) UpdateOrders(ctx context.Context, req *orders_proto.UpdateOrdersRequest) (*orders_proto.UpdateOrdersResponse, error) {
 
-	err := s.service.ServeRecipient(s.context, req.GetOrderIds(), req.GetRecipientId(), req.GetAction())
+	err := s.service.ServeRecipient(ctx, req.GetOrderIds(), req.GetRecipientId(), req.GetAction())
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
@@ -71,7 +69,7 @@ func (s *GrpcHandler) UpdateOrders(ctx context.Context, req *orders_proto.Update
 
 func (s *GrpcHandler) DeleteOrder(ctx context.Context, req *orders_proto.DeleteOrderRequest) (*orders_proto.DeleteOrderResponse, error) {
 
-	err := s.service.ReturnToCourier(s.context, req.GetOrderId())
+	err := s.service.ReturnToCourier(ctx, req.GetOrderId())
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)

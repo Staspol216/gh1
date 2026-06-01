@@ -17,7 +17,7 @@ import (
 	pvz_grpc "github.com/Staspol216/gh1/internal/handlers/grpc"
 	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
 	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
-	pvz_order_storage "github.com/Staspol216/gh1/internal/infrastructure/repository/order"
+	psql_order_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order/postgres"
 	cache_order_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order/redis"
 	psql_order_outbox_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
 	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
@@ -26,10 +26,6 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"google.golang.org/grpc"
 )
-
-type Handler interface {
-	Serve() error
-}
 
 func main() {
 	const (
@@ -66,14 +62,6 @@ func main() {
 	}
 
 	database := db.NewDatabase(txManager)
-
-	postgresRepoConfig := &pvz_order_storage.Config{
-		StorageType: pvz_order_storage.StorageTypePostgres,
-		Postgres: &pvz_order_storage.PostgresConfig{
-			Db:      database,
-			Context: sigCtx,
-		},
-	}
 
 	orderOutboxRepo := &psql_order_outbox_repo.OrderOutboxRepo{
 		Db: database,
@@ -129,19 +117,19 @@ func main() {
 		reader.Run()
 	})
 
-	orderStorage, err := pvz_order_storage.New(postgresRepoConfig)
+	orderRepo, err := psql_order_repo.New(database)
 
 	if err != nil {
 		log.Fatal("pvz.New: %w", err)
 	}
 
-	populateOrdersErr := orderCache.PopulateOrders(sigCtx, orderStorage, 0)
+	populateOrdersErr := orderCache.PopulateOrders(sigCtx, orderRepo, 0)
 
 	if populateOrdersErr != nil {
 		log.Fatal("PopulateOrders: %w", populateOrdersErr)
 	}
 
-	pvzService := pvz_order_service.New(orderStorage, *orderOutboxRepo, orderCache, txManager)
+	pvzService := pvz_order_service.New(orderRepo, *orderOutboxRepo, orderCache, txManager)
 
 	httpHandler := pvz_http.New(sigCtx, pvzService)
 
@@ -153,7 +141,7 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	grcpHandler := pvz_grpc.New(sigCtx, pvzService)
+	grcpHandler := pvz_grpc.New(pvzService)
 
 	orders_proto.RegisterOrdersServiceServer(grpcServer, grcpHandler)
 

@@ -2,7 +2,7 @@ package pvz_domain
 
 import "context"
 
-// Storager defines storage operations for orders used across the application.
+// OrderStorager defines storage operations for orders used across the application.
 // Placing this in the domain layer keeps the dependency direction inward.
 type OrderStorager interface {
 	GetAll(ctx context.Context) ([]*Order, error)

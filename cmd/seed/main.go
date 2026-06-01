@@ -15,25 +15,25 @@ func main() {
 
 	cfg, err := pvz_config.Load()
 
-	context, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pool, err := pgxpool.Connect(context, cfg.DBConnString())
+	pool, err := pgxpool.Connect(ctx, cfg.DBConnString())
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	txManager := tx_manager.New(pool, context)
+	txManager := tx_manager.New(pool, ctx)
 
-	db := db.NewDatabase(txManager)
+	database := db.NewDatabase(txManager)
 
-	repo, repoErr := psql_order_repo.New(db, context)
+	repo, repoErr := psql_order_repo.New(database)
 
 	if repoErr != nil {
 		log.Fatal(repoErr)
 	}
 
-	repo.SeedOrders(context)
+	repo.SeedOrders(ctx)
 
 }

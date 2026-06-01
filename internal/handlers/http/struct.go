@@ -70,7 +70,7 @@ func (rd *OrderResponse) Render(w http.ResponseWriter, r *http.Request) error {
 }
 
 func NewOrdersListResponse(orders []*pvz_domain.Order) []render.Renderer {
-	list := []render.Renderer{}
+	list := make([]render.Renderer, 0, len(orders))
 	for _, order := range orders {
 		list = append(list, NewOrderResponse(order))
 	}

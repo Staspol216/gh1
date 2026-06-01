@@ -45,7 +45,7 @@ func (o *Order) IsDelivered() bool {
 	return o.Status == OrderStatusDelivered
 }
 
-func (o *Order) IsRecieved() bool {
+func (o *Order) IsReceived() bool {
 	return o.Status == OrderStatusReceived
 }
 
@@ -55,8 +55,8 @@ func (o *Order) IsExpired() bool {
 }
 
 func (o *Order) CanBeRefunded() bool {
-	const DAYS_FOR_REFUNDING = 2
-	refundExpirationDate := o.DeliveredDate.AddDate(0, 0, DAYS_FOR_REFUNDING)
+	const DaysForRefunding = 2
+	refundExpirationDate := o.DeliveredDate.AddDate(0, 0, DaysForRefunding)
 	canBeRefunded := o.DeliveredDate.Compare(refundExpirationDate) == -1
 	return canBeRefunded
 }

@@ -15,13 +15,13 @@ type OrderOutboxTask struct {
 	Status    OrderOutboxTaskStatus `json:"status"`
 	CreatedAt time.Time             `json:"created_at"`
 
-	Order_status OrderStatus `json:"order_status"`
-	Description  string      `json:"description"`
-	Timestamp    time.Time   `json:"timestamp"`
+	OrderStatus OrderStatus `json:"order_status"`
+	Description string      `json:"description"`
+	Timestamp   time.Time   `json:"timestamp"`
 }
 
 func (t *OrderOutboxTask) SetOrderStatusDetails(orderRecord *OrderRecord) {
-	t.Order_status = orderRecord.Status
+	t.OrderStatus = orderRecord.Status
 	t.Description = orderRecord.Description
 	t.Timestamp = orderRecord.Timestamp
 }

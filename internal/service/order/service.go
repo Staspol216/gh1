@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"slices"
 	"time"
 
@@ -97,38 +96,43 @@ func (s *Pvz) GetOrdersByIDs(ctx context.Context, ordersIds []int64) ([]*pvz_dom
 	return orders, nil
 }
 
-func (p *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (*int64, error) {
+func (s *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (*int64, error) {
 
 	var order *pvz_domain.Order
 
-	txError := p.txManager.RunReadCommitted(func(ctxTx context.Context) error {
+	txError := s.txManager.RunReadCommitted(func(ctxTx context.Context) error {
 		newOrder := pvz_domain.New(payload)
-		p.applyPackaging(newOrder, packagingType, additionalMembrana)
+		if err := s.applyPackaging(newOrder, packagingType, additionalMembrana); err != nil {
+			return err
+		}
+
 		newOrder.SetStatus(pvz_domain.OrderStatusReceived)
 
-		id, err := p.storage.Add(ctxTx, newOrder)
+		id, err := s.storage.Add(ctxTx, newOrder)
 		if err != nil {
 			return err
 		}
 
 		orderRecord := pvz_domain.NewOrderRecordReceived()
 
-		p.storage.AddHistoryRecord(ctxTx, orderRecord, id)
+		if _, er := s.storage.AddHistoryRecord(ctxTx, orderRecord, id); er != nil {
+			return er
+		}
 
-		result, err := p.storage.GetByID(ctxTx, id)
+		result, err := s.storage.GetByID(ctxTx, id)
 		if err != nil {
 			return err
 		}
 
 		task := &pvz_domain.OrderOutboxTask{
-			Status:       pvz_domain.Created,
-			CreatedAt:    time.Now(),
-			Order_status: orderRecord.Status,
-			Description:  orderRecord.Description,
-			Timestamp:    orderRecord.Timestamp,
+			Status:      pvz_domain.Created,
+			CreatedAt:   time.Now(),
+			OrderStatus: orderRecord.Status,
+			Description: orderRecord.Description,
+			Timestamp:   orderRecord.Timestamp,
 		}
 
-		_, outboxErr := p.outbox.AddTask(ctxTx, task)
+		_, outboxErr := s.outbox.AddTask(ctxTx, task)
 		if outboxErr != nil {
 			return outboxErr
 		}
@@ -142,16 +146,21 @@ func (p *Pvz) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderPa
 		return nil, txError
 	}
 
-	p.cache.SetOrder(ctx, order, 0)
-	p.cache.AddOrderToIndex(ctx, order)
+	if err := s.cache.SetOrder(ctx, order, 0); err != nil {
+		return nil, err
+	}
+
+	if err := s.cache.AddOrderToIndex(ctx, order); err != nil {
+		return nil, err
+	}
 
 	return &order.ID, txError
 }
 
-func (p *Pvz) ReturnToCourier(ctx context.Context, orderId int64) error {
+func (s *Pvz) ReturnToCourier(ctx context.Context, orderId int64) error {
 
-	txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
-		order, err := p.storage.GetByID(ctxTx, orderId)
+	txError := s.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
+		order, err := s.storage.GetByID(ctxTx, orderId)
 
 		if err != nil {
 			return err
@@ -161,29 +170,35 @@ func (p *Pvz) ReturnToCourier(ctx context.Context, orderId int64) error {
 			return errors.New("order cannot be returned to courier as it's not expired")
 		}
 
-		p.storage.Delete(ctxTx, orderId)
+		if errDel := s.storage.Delete(ctxTx, orderId); errDel != nil {
+			return errDel
+		}
 
 		return nil
 	})
 
 	if txError == nil {
-		p.cache.RemoveOrderFromIndex(ctx, orderId)
-		p.cache.DeleteOrder(ctx, orderId)
+		if err := s.cache.RemoveOrderFromIndex(ctx, orderId); err != nil {
+			return err
+		}
+		if err := s.cache.DeleteOrder(ctx, orderId); err != nil {
+			return err
+		}
 	}
 
 	return txError
 }
 
-func (p *Pvz) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId int64, action string) error {
+func (s *Pvz) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId int64, action string) error {
 
 	switch action {
 	case Deliver.String():
-		err := p.DeliverOrders(ctx, ordersIds, recipientId)
+		err := s.DeliverOrders(ctx, ordersIds, recipientId)
 		if err != nil {
 			return err
 		}
 	case Refund.String():
-		err := p.RefundOrders(ctx, ordersIds, recipientId)
+		err := s.RefundOrders(ctx, ordersIds, recipientId)
 		if err != nil {
 			return err
 		}
@@ -194,51 +209,52 @@ func (p *Pvz) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId
 	return nil
 }
 
-func (p *Pvz) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
+func (s *Pvz) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
 
 	for _, orderId := range ordersIds {
 
 		var updatedOrder *pvz_domain.Order
 
-		txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
+		txError := s.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
 
-			order, _ := p.storage.GetByID(ctx, orderId)
+			order, _ := s.storage.GetByID(ctxTx, orderId)
 
 			if order.RecipientID != recipientId {
-				return fmt.Errorf("Order %d does not belong to recipient %d", orderId, recipientId)
+				return fmt.Errorf("order %d does not belong to recipient %d", orderId, recipientId)
 			}
 
 			if order == nil {
-				return fmt.Errorf("Order %d not found", orderId)
+				return fmt.Errorf("order %d not found", orderId)
 			}
 
 			if order.IsDelivered() && order.CanBeRefunded() {
 				order.Refund()
 
 				orderRecord := pvz_domain.NewOrderRecordRefunded()
-				p.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID)
+				if _, err := s.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID); err != nil {
+					return err
+				}
 
-				err := p.storage.Update(ctxTx, order)
-				if err != nil {
+				if err := s.storage.Update(ctxTx, order); err != nil {
 					return err
 				}
 
 				job := &pvz_domain.OrderOutboxTask{
-					Status:       pvz_domain.Created,
-					CreatedAt:    time.Now(),
-					Order_status: orderRecord.Status,
-					Description:  orderRecord.Description,
-					Timestamp:    orderRecord.Timestamp,
+					Status:      pvz_domain.Created,
+					CreatedAt:   time.Now(),
+					OrderStatus: orderRecord.Status,
+					Description: orderRecord.Description,
+					Timestamp:   orderRecord.Timestamp,
 				}
 
-				_, outboxErr := p.outbox.AddTask(ctxTx, job)
+				_, outboxErr := s.outbox.AddTask(ctxTx, job)
 				if outboxErr != nil {
 					return outboxErr
 				}
 
 				updatedOrder = order
 			} else {
-				return fmt.Errorf("Order %d can not be refunded to recipient because refund time has expired or it has already refunded by recipient", order.ID)
+				return fmt.Errorf(`order %d can not be refunded to recipient because refund time has expired or it has already refunded by recipient`, order.ID)
 			}
 
 			return nil
@@ -248,54 +264,58 @@ func (p *Pvz) RefundOrders(ctx context.Context, ordersIds []int64, recipientId i
 			return txError
 		}
 
-		p.cache.SetOrder(ctx, updatedOrder, 0)
+		if err := s.cache.SetOrder(ctx, updatedOrder, 0); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (p *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
+func (s *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
 
 	for _, orderId := range ordersIds {
 
 		var updatedOrder *pvz_domain.Order
 
-		txError := p.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
+		txError := s.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
 
-			order, _ := p.storage.GetByID(ctx, orderId)
+			order, _ := s.storage.GetByID(ctxTx, orderId)
 
 			if order.RecipientID != recipientId {
-				return fmt.Errorf("Order %d does not belong to recipient %d", orderId, recipientId)
+				return fmt.Errorf("order %d does not belong to recipient %d", orderId, recipientId)
 			}
 
 			if order == nil {
-				return fmt.Errorf("Order %d not found", orderId)
+				return fmt.Errorf("order %d not found", orderId)
 			}
 
-			if !order.IsRecieved() {
-				return fmt.Errorf("Order %d must be recieved from courier", order.ID)
+			if !order.IsReceived() {
+				return fmt.Errorf("order %d must be received from courier", order.ID)
 			}
 
 			if order.IsExpired() {
 				order.Expire()
-				err := p.storage.Update(ctxTx, order)
+				if err := s.storage.Update(ctxTx, order); err != nil {
+					return err
+				}
 
 				orderRecord := pvz_domain.NewOrderRecordExpired()
 
-				p.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID)
+				_, err := s.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID)
 				if err != nil {
 					return err
 				}
 
 				task := &pvz_domain.OrderOutboxTask{
-					Status:       pvz_domain.Created,
-					CreatedAt:    time.Now(),
-					Order_status: orderRecord.Status,
-					Description:  orderRecord.Description,
-					Timestamp:    orderRecord.Timestamp,
+					Status:      pvz_domain.Created,
+					CreatedAt:   time.Now(),
+					OrderStatus: orderRecord.Status,
+					Description: orderRecord.Description,
+					Timestamp:   orderRecord.Timestamp,
 				}
 
-				_, outboxErr := p.outbox.AddTask(ctxTx, task)
+				_, outboxErr := s.outbox.AddTask(ctxTx, task)
 				if outboxErr != nil {
 					return outboxErr
 				}
@@ -303,24 +323,25 @@ func (p *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId 
 				updatedOrder = order
 			} else {
 				order.Deliver()
-				err := p.storage.Update(ctxTx, order)
+				if err := s.storage.Update(ctxTx, order); err != nil {
+					return err
+				}
 
 				orderRecord := pvz_domain.NewOrderRecordDelivered()
 
-				p.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID)
-				if err != nil {
+				if _, err := s.storage.AddHistoryRecord(ctxTx, orderRecord, order.ID); err != nil {
 					return err
 				}
 
 				task := &pvz_domain.OrderOutboxTask{
-					Status:       pvz_domain.Created,
-					CreatedAt:    time.Now(),
-					Order_status: orderRecord.Status,
-					Description:  orderRecord.Description,
-					Timestamp:    orderRecord.Timestamp,
+					Status:      pvz_domain.Created,
+					CreatedAt:   time.Now(),
+					OrderStatus: orderRecord.Status,
+					Description: orderRecord.Description,
+					Timestamp:   orderRecord.Timestamp,
 				}
 
-				_, outboxErr := p.outbox.AddTask(ctxTx, task)
+				_, outboxErr := s.outbox.AddTask(ctxTx, task)
 				if outboxErr != nil {
 					return outboxErr
 				}
@@ -335,17 +356,19 @@ func (p *Pvz) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId 
 			return txError
 		}
 
-		p.cache.SetOrder(ctx, updatedOrder, 0)
+		if err := s.cache.SetOrder(ctx, updatedOrder, 0); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (p *Pvz) GetAllRefunds(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
+func (s *Pvz) GetAllRefunds(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
 
-	orders, err := p.cache.GetList(ctx, pagination, p.storage)
+	orders, err := s.cache.GetList(ctx, pagination, s.storage)
 	if err != nil {
-		orders, err = p.storage.GetList(ctx, pagination)
+		orders, err = s.storage.GetList(ctx, pagination)
 		if err != nil {
 			return nil, err
 		}
@@ -362,11 +385,12 @@ func (p *Pvz) GetAllRefunds(ctx context.Context, pagination *pvz_domain.Paginati
 	return refundedOrders, nil
 }
 
-func (p *Pvz) GetHistory(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
+func (s *Pvz) GetHistory(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
 
-	orders, err := p.cache.GetList(ctx, pagination, p.storage)
+	orders, err := s.cache.GetList(ctx, pagination, s.storage)
+
 	if err != nil {
-		orders, err = p.storage.GetList(ctx, pagination)
+		orders, err = s.storage.GetList(ctx, pagination)
 		if err != nil {
 			return nil, err
 		}
@@ -389,20 +413,16 @@ func (p *Pvz) GetHistory(ctx context.Context, pagination *pvz_domain.Pagination)
 }
 
 func (s *Pvz) getPackagingStrategy(packagingType string) pvz_domain.PackagingStrategy {
-	var Strategy pvz_domain.PackagingStrategy
-
 	switch packagingType {
 	case "box":
-		Strategy = &pvz_domain.PackagingBoxStrategy{}
+		return &pvz_domain.PackagingBoxStrategy{}
 	case "bag":
-		Strategy = &pvz_domain.PackagingBagStrategy{}
+		return &pvz_domain.PackagingBagStrategy{}
 	case "membrana":
-		Strategy = &pvz_domain.PackagingMembranaStrategy{}
+		return &pvz_domain.PackagingMembranaStrategy{}
 	default:
-		log.Print("Unknown package type")
+		return &pvz_domain.PackagingBoxStrategy{}
 	}
-
-	return Strategy
 }
 
 func (s *Pvz) applyPackaging(order *pvz_domain.Order, packagingType string, additionalMembrana bool) error {

@@ -12,7 +12,7 @@ type OrderOutboxRepo struct {
 	Db db.DB
 }
 
-func (r *OrderOutboxRepo) AddTask(ctx context.Context, audit_log *pvz_domain.OrderOutboxTask) (int64, error) {
+func (r *OrderOutboxRepo) AddTask(ctx context.Context, auditLog *pvz_domain.OrderOutboxTask) (int64, error) {
 	query := `
 	INSERT INTO orders_statuses_outbox (
 		status,
@@ -23,11 +23,11 @@ func (r *OrderOutboxRepo) AddTask(ctx context.Context, audit_log *pvz_domain.Ord
 	) VALUES ($1, $2, $3, $4, $5) RETURNING id;`
 
 	row := r.Db.ExecQueryRow(ctx, query,
-		audit_log.Status,
-		audit_log.CreatedAt,
-		audit_log.Order_status,
-		audit_log.Description,
-		audit_log.Timestamp,
+		auditLog.Status,
+		auditLog.CreatedAt,
+		auditLog.OrderStatus,
+		auditLog.Description,
+		auditLog.Timestamp,
 	)
 
 	var id int64
@@ -41,12 +41,11 @@ func (r *OrderOutboxRepo) AddTask(ctx context.Context, audit_log *pvz_domain.Ord
 func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error) {
 	var tasks []pvz_domain.OrderOutboxTask
 
-	query := `
-	WITH picked AS (
-		SELECT * FROM orders_statuses_outbox
-		WHERE status = 'created' 
-		ORDER BY created_at ASC 
-		LIMIT 100
+	query := `WITH picked AS (
+		SELECT * FROM orders_statuses_outbox 
+		WHERE status = 'created'
+		ORDER BY created_at 
+		LIMIT 100 
 		FOR UPDATE SKIP LOCKED
 	)
 	UPDATE orders_statuses_outbox AS o
@@ -70,7 +69,7 @@ func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOu
 
 func (r *OrderOutboxRepo) MarkTaskAsFailed(ctx context.Context, id int64) error {
 	_, err := r.Db.Exec(ctx, `
-        UPDATE orders_statuses_outbox
+    	UPDATE orders_statuses_outbox
         SET status = 'failed'
         WHERE id = $1;
     `, id)

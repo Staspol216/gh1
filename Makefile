@@ -8,8 +8,8 @@ GOBUILD=go build -o ${OUTPUT_DIR}/${BINARY_NAME}
 .DEAFULT_GOAL := help
 
 ## Load environment file if present (defines DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSLMODE)
-ifneq (,$(wildcard .env))
-	include .env
+ifneq (,$(wildcard .env.local))
+	include .env.local
 endif
 
 # Provide defaults when variables are not set in environment/.env

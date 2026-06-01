@@ -15,7 +15,7 @@ type OrderRepo struct {
 	db db.DB
 }
 
-func New(database db.DB, ctx context.Context) (*OrderRepo, error) {
+func New(database db.DB) (*OrderRepo, error) {
 	return &OrderRepo{
 		db: database,
 	}, nil
@@ -52,7 +52,9 @@ func (r *OrderRepo) AddHistoryRecord(ctx context.Context, record *pvz_domain.Ord
 		description,
 		timestamp,
 		status
-	) VALUES ($1, $2, $3, $4) RETURNING id;`
+	) VALUES ($1, $2, $3, $4) 
+	RETURNING id;
+	`
 
 	row := r.db.ExecQueryRow(ctx, query,
 		orderId,
@@ -81,17 +83,18 @@ func (r *OrderRepo) Delete(ctx context.Context, orderId int64) error {
 }
 
 func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_domain.Order) error {
-	query := `UPDATE orders SET 
-                  recipient_id=$1, 
-                  expiration_date=$2, 
-                  delivered_date=$3, 
-                  refunded_date=$4, 
-                  returned_date=$5, 
-                  status=$6, 
-                  weight=$7,
-                  worth=$8 
-              WHERE id=$9 
-              RETURNING id;`
+	query := `	
+	UPDATE orders
+	SET recipient_id=$1,
+		expiration_date=$2,
+		delivered_date=$3,
+		refunded_date=$4,
+		returned_date=$5,
+		status=$6,
+		weight=$7,
+		worth=$8
+	WHERE id = $9 RETURNING id;
+	`
 
 	row := r.db.ExecQueryRow(ctx, query,
 		updatedOrder.RecipientID,
@@ -122,9 +125,9 @@ func (r *OrderRepo) GetAll(ctx context.Context) ([]*pvz_domain.Order, error) {
 
 	var recordDTOs []orderRecordDTO
 	orderRecordsErr := r.db.Select(ctx, &recordDTOs, `
-        SELECT id, order_id, timestamp, status, description
+        SELECT id, order_id, TIMESTAMP, status, description
         FROM order_records
-        ORDER BY order_id, timestamp
+        ORDER BY order_id, TIMESTAMP
     `)
 	if orderRecordsErr != nil {
 		return nil, orderRecordsErr
@@ -164,9 +167,9 @@ func (r *OrderRepo) GetList(ctx context.Context, pagination *pvz_domain.Paginati
 
 	var recordDTOs []orderRecordDTO
 	orderRecordsErr := r.db.Select(ctx, &recordDTOs, `
-        SELECT id, order_id, timestamp, status, description
+        SELECT id, order_id, TIMESTAMP, status, description
         FROM order_records
-        ORDER BY order_id, timestamp
+        ORDER BY order_id, TIMESTAMP
     `)
 
 	if orderRecordsErr != nil {

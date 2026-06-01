@@ -22,7 +22,7 @@ func (w *OutboxWorker) Run(ctx context.Context, interval time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Outbox worker finshed by context done")
+			log.Println("Outbox worker finished by context done")
 			return
 		case <-ticker.C:
 			tasks, err := w.Repo.LockPending(ctx)

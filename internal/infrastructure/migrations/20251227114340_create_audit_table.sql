@@ -10,7 +10,7 @@ CREATE TABLE audit_logs (
     status_response BIGINT NOT NULL,
     duration_ms BIGINT NOT NULL,
     details JSON
-)
+);
 -- +goose StatementEnd
 
 -- +goose Down

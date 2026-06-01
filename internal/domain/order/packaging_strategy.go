@@ -21,7 +21,7 @@ func (pbs *PackagingBagStrategy) CalculateWorth(baseCost float64) float64 {
 	return baseCost + 5
 }
 
-func (pbs *PackagingMembranaStrategy) Validate(weight float64) error {
+func (pbs *PackagingMembranaStrategy) Validate(_ float64) error {
 	return nil
 }
 func (pbs *PackagingMembranaStrategy) CalculateWorth(baseCost float64) float64 {

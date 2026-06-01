@@ -72,7 +72,7 @@ func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 
 	// Start server in goroutine so we can listen for shutdown signal
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("HTTP server error: %v", err)
 		}
 	}()
@@ -248,7 +248,7 @@ func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request)
 func (h *HTTPHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 	orderID, ok := r.Context().Value(ctxKeyOrderID).(int64)
 	if !ok {
-		render.Render(w, r, ErrInternal(errors.New("cannot get order id from requset context")))
+		render.Render(w, r, ErrInternal(errors.New("cannot get order id from request context")))
 		return
 	}
 

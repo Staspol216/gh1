@@ -79,22 +79,18 @@ func (c *Config) DBConnString() string {
 	return u.String()
 }
 
-// Redis address
 func (c *Config) RedisAddr() string {
 	return c.RedisHost + ":" + strconv.Itoa(c.RedisPort)
 }
 
-// Kafka broker address
 func (c *Config) KafkaAddr() string {
 	return c.KafkaHost + ":" + strconv.Itoa(c.KafkaPort)
 }
 
-// HTTP bind address
 func (c *Config) HTTPAddr() string {
 	return c.BackendHost + ":" + strconv.Itoa(c.BackendHTTPPort)
 }
 
-// gRPC bind address
 func (c *Config) GRPCAddr() string {
 	return c.BackendHost + ":" + strconv.Itoa(c.BackendGRPCPort)
 }
