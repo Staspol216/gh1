@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/jackc/pgx/v4"
 )
 

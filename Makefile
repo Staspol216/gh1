@@ -1,11 +1,9 @@
-LOCAL_BIN:=$(CURDIR)/bin
-
 BINARY_NAME = myapp
 OUTPUT_DIR = bin
 
 GOBUILD=go build -o ${OUTPUT_DIR}/${BINARY_NAME}
 
-.DEAFULT_GOAL := help
+.DEFAULT_GOAL := help
 
 ## Load environment file if present (defines DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSLMODE)
 ifneq (,$(wildcard .env.local))
@@ -22,24 +20,34 @@ DB_SSLMODE ?= disable
 
 GOOSE_DBSTRING ?= user=$(DB_USER) password=$(DB_PASSWORD) dbname=$(DB_NAME) host=$(DB_HOST) port=$(DB_PORT) sslmode=$(DB_SSLMODE)
 
-MIGRATION_FOLDER=$(CURDIR)/internal/infrastructure/migrations
+MIGRATIONS_DIR=$(CURDIR)/internal/infrastructure/migrations
 
 .PHONY: migration-create
 migration-create:
-	goose -dir "$(MIGRATION_FOLDER)" create "$(name)" sql
+	goose -dir "$(MIGRATIONS_DIR)" create "$(name)" sql
 
 .PHONY: migration-up
 migration-up:
-	goose -dir "$(MIGRATION_FOLDER)" postgres "$(GOOSE_DBSTRING)" up
+	goose -dir "$(MIGRATIONS_DIR)" postgres "$(GOOSE_DBSTRING)" up
 
 .PHONY: migration-down
 migration-down:
-	goose -dir "$(MIGRATION_FOLDER)" postgres "$(GOOSE_DBSTRING)" down
+	goose -dir "$(MIGRATIONS_DIR)" postgres "$(GOOSE_DBSTRING)" down
 	
 .PHONY: generate-orders-api
 generate-orders-api:
 	mkdir -p pkg/api
 	protoc --go_out=pkg/api --go-grpc_out=pkg/api cmd/api/orders.proto
+
+.PHONY: generate-mockgen
+generate-mockgen:
+	go generate -run=mockgen ./...
+
+.PHONY: test
+test:
+	$(info running tests...)
+	go test ./...
+
 
 .PHONY: help
 help: 

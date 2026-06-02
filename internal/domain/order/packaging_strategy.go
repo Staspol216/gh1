@@ -37,3 +37,16 @@ func (pbs *PackagingBoxStrategy) Validate(weight float64) error {
 func (pbs *PackagingBoxStrategy) CalculateWorth(baseCost float64) float64 {
 	return baseCost + 20
 }
+
+func GetPackagingStrategy(packagingType string) PackagingStrategy {
+	switch packagingType {
+	case "box":
+		return &PackagingBoxStrategy{}
+	case "bag":
+		return &PackagingBagStrategy{}
+	case "membrana":
+		return &PackagingMembranaStrategy{}
+	default:
+		return &PackagingBoxStrategy{}
+	}
+}

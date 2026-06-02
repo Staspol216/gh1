@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"github.com/IBM/sarama"
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 )

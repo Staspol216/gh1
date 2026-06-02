@@ -1,10 +1,10 @@
-package psql_order_repo
+package order_repo
 
 import (
 	"database/sql"
 	"time"
 
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/domain/order"
 )
 
 type orderDTO struct {

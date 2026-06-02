@@ -1,18 +1,18 @@
-package psql_order_outbox_repo
+package order_outbox
 
 import (
 	"context"
 	"log"
 
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
-	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
+	"github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/ports"
 )
 
-type OrderOutboxRepo struct {
-	Db db.DB
+type OrderOutbox struct {
+	Db pvz_ports.DB
 }
 
-func (r *OrderOutboxRepo) AddTask(ctx context.Context, auditLog *pvz_domain.OrderOutboxTask) (int64, error) {
+func (r *OrderOutbox) AddTask(ctx context.Context, auditLog *pvz_domain.OrderOutboxTask) (int64, error) {
 	query := `
 	INSERT INTO orders_statuses_outbox (
 		status,
@@ -38,7 +38,7 @@ func (r *OrderOutboxRepo) AddTask(ctx context.Context, auditLog *pvz_domain.Orde
 	return id, err
 }
 
-func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error) {
+func (r *OrderOutbox) LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error) {
 	var tasks []pvz_domain.OrderOutboxTask
 
 	query := `WITH picked AS (
@@ -67,7 +67,7 @@ func (r *OrderOutboxRepo) LockPending(ctx context.Context) ([]pvz_domain.OrderOu
 	return tasks, nil
 }
 
-func (r *OrderOutboxRepo) MarkTaskAsFailed(ctx context.Context, id int64) error {
+func (r *OrderOutbox) MarkTaskAsFailed(ctx context.Context, id int64) error {
 	_, err := r.Db.Exec(ctx, `
     	UPDATE orders_statuses_outbox
         SET status = 'failed'
@@ -77,7 +77,7 @@ func (r *OrderOutboxRepo) MarkTaskAsFailed(ctx context.Context, id int64) error 
 	return err
 }
 
-func (r *OrderOutboxRepo) DeleteTasks(ctx context.Context, ids []int64) error {
+func (r *OrderOutbox) DeleteTasks(ctx context.Context, ids []int64) error {
 
 	for _, id := range ids {
 		err := r.DeleteTask(ctx, id)
@@ -89,7 +89,7 @@ func (r *OrderOutboxRepo) DeleteTasks(ctx context.Context, ids []int64) error {
 	return nil
 }
 
-func (r *OrderOutboxRepo) DeleteTask(ctx context.Context, id int64) error {
+func (r *OrderOutbox) DeleteTask(ctx context.Context, id int64) error {
 	_, err := r.Db.Exec(ctx, `DELETE FROM orders_statuses_outbox WHERE id = $1;`, id)
 
 	return err

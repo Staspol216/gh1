@@ -11,18 +11,18 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	pvz_worker_audit "github.com/Staspol216/gh1/cmd/audit"
-	pvz_config "github.com/Staspol216/gh1/internal/config"
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
-	pvz_grpc "github.com/Staspol216/gh1/internal/handlers/grpc"
-	pvz_http "github.com/Staspol216/gh1/internal/handlers/http"
-	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
-	psql_order_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order/postgres"
-	cache_order_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order/redis"
-	psql_order_outbox_repo "github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
+	"github.com/Staspol216/gh1/cmd/audit"
+	"github.com/Staspol216/gh1/internal/config"
+	"github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/handlers/grpc"
+	"github.com/Staspol216/gh1/internal/handlers/http"
+	"github.com/Staspol216/gh1/internal/infrastructure/postgres"
+	"github.com/Staspol216/gh1/internal/infrastructure/repository/order/postgres"
+	"github.com/Staspol216/gh1/internal/infrastructure/repository/order/redis"
+	"github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
 	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
-	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
-	orders_proto "github.com/Staspol216/gh1/pkg/api/orders.proto"
+	"github.com/Staspol216/gh1/internal/service/order"
+	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"google.golang.org/grpc"
 )
@@ -63,7 +63,7 @@ func main() {
 
 	database := db.NewDatabase(txManager)
 
-	orderOutboxRepo := &psql_order_outbox_repo.OrderOutboxRepo{
+	orderOutboxRepo := &order_outbox.OrderOutbox{
 		Db: database,
 	}
 
@@ -117,16 +117,10 @@ func main() {
 		reader.Run()
 	})
 
-	orderRepo, err := psql_order_repo.New(database)
+	orderRepo, err := order_repo.New(database)
 
 	if err != nil {
 		log.Fatal("pvz.New: %w", err)
-	}
-
-	populateOrdersErr := orderCache.PopulateOrders(sigCtx, orderRepo, 0)
-
-	if populateOrdersErr != nil {
-		log.Fatal("PopulateOrders: %w", populateOrdersErr)
 	}
 
 	pvzService := pvz_order_service.New(orderRepo, *orderOutboxRepo, orderCache, txManager)

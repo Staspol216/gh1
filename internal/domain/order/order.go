@@ -80,3 +80,18 @@ func (o *Order) Expire() {
 func (o *Order) SetStatus(status OrderStatus) {
 	o.Status = status
 }
+
+func (o *Order) ApplyPackaging(packagingType string, additionalMembrana bool) error {
+	packagingStrategy := GetPackagingStrategy(packagingType)
+
+	if additionalMembrana && packagingType != "membrana" {
+		packagingStrategy = &MembranaDecorator{Strategy: packagingStrategy}
+	}
+
+	if err := packagingStrategy.Validate(o.Weight); err != nil {
+		return err
+	}
+
+	o.Worth = packagingStrategy.CalculateWorth(o.Worth)
+	return nil
+}

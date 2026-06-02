@@ -3,7 +3,7 @@ package tx_manager
 import (
 	"context"
 
-	pvz_ports "github.com/Staspol216/gh1/internal/ports"
+	"github.com/Staspol216/gh1/internal/ports"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )

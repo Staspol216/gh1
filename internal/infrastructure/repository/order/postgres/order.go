@@ -1,21 +1,22 @@
-package psql_order_repo
+package order_repo
 
 import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
-	db "github.com/Staspol216/gh1/internal/infrastructure/postgres"
+	"github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/ports"
 )
 
 type OrderRepo struct {
-	db db.DB
+	db pvz_ports.DB
 }
 
-func New(database db.DB) (*OrderRepo, error) {
+func New(database pvz_ports.DB) (*OrderRepo, error) {
 	return &OrderRepo{
 		db: database,
 	}, nil
@@ -83,6 +84,9 @@ func (r *OrderRepo) Delete(ctx context.Context, orderId int64) error {
 }
 
 func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_domain.Order) error {
+
+	var updatedID int64
+
 	query := `	
 	UPDATE orders
 	SET recipient_id=$1,
@@ -96,7 +100,7 @@ func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_domain.Order) 
 	WHERE id = $9 RETURNING id;
 	`
 
-	row := r.db.ExecQueryRow(ctx, query,
+	err := r.db.ExecQueryRow(ctx, query,
 		updatedOrder.RecipientID,
 		updatedOrder.ExpirationDate,
 		updatedOrder.DeliveredDate,
@@ -106,10 +110,9 @@ func (r *OrderRepo) Update(ctx context.Context, updatedOrder *pvz_domain.Order) 
 		updatedOrder.Weight,
 		updatedOrder.Worth,
 		updatedOrder.ID,
-	)
+	).Scan(&updatedID)
 
-	var updatedID int64
-	if err := row.Scan(&updatedID); err != nil {
+	if err != nil {
 		return err
 	}
 
@@ -204,7 +207,6 @@ func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_domain.Or
 		if errors.Is(err, sql.ErrNoRows) {
 			return []*pvz_domain.Order{}, nil
 		}
-		log.Print(err)
 		return nil, err
 	}
 
@@ -222,9 +224,8 @@ func (r *OrderRepo) GetByID(ctx context.Context, id int64) (*pvz_domain.Order, e
 	err := r.db.Get(ctx, &a, "SELECT * FROM orders WHERE id=$1", id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("not found")
+			return nil, fmt.Errorf("order %d not found", id)
 		}
-		log.Print(err)
 		return nil, err
 	}
 	return transformOrderDtoToModel(&a), nil
