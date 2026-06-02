@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Staspol216/gh1/internal/domain/order"
-	"github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
+	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/ports"
 )
 

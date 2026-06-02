@@ -5,9 +5,9 @@ import (
 	"log"
 
 	"github.com/Staspol216/gh1/internal/config"
-	"github.com/Staspol216/gh1/internal/infrastructure/postgres"
-	"github.com/Staspol216/gh1/internal/infrastructure/repository/order/postgres"
-	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
+	"github.com/Staspol216/gh1/internal/infra/postgres"
+	"github.com/Staspol216/gh1/internal/infra/repository/order/postgres"
+	"github.com/Staspol216/gh1/internal/infra/tx_manager"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 

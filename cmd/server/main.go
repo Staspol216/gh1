@@ -16,11 +16,11 @@ import (
 	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/handlers/grpc"
 	"github.com/Staspol216/gh1/internal/handlers/http"
-	"github.com/Staspol216/gh1/internal/infrastructure/postgres"
-	"github.com/Staspol216/gh1/internal/infrastructure/repository/order/postgres"
-	"github.com/Staspol216/gh1/internal/infrastructure/repository/order/redis"
-	"github.com/Staspol216/gh1/internal/infrastructure/repository/order_outbox"
-	"github.com/Staspol216/gh1/internal/infrastructure/tx_manager"
+	"github.com/Staspol216/gh1/internal/infra/order_outbox"
+	"github.com/Staspol216/gh1/internal/infra/postgres"
+	"github.com/Staspol216/gh1/internal/infra/repository/order/postgres"
+	"github.com/Staspol216/gh1/internal/infra/repository/order/redis"
+	"github.com/Staspol216/gh1/internal/infra/tx_manager"
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -63,20 +63,16 @@ func main() {
 
 	database := db.NewDatabase(txManager)
 
-	orderOutboxRepo := &order_outbox.OrderOutbox{
-		Db: database,
-	}
-
 	tasks := make(chan []pvz_domain.OrderOutboxTask, jobsCount)
 	defer close(tasks)
 
-	outboxWorker := &pvz_worker_audit.OutboxWorker{
-		Repo:  orderOutboxRepo,
+	orderOutbox := &order_outbox.OrderOutbox{
+		Db:    database,
 		Tasks: tasks,
 	}
 
 	wg.Go(func() {
-		outboxWorker.Run(sigCtx, 60*time.Second)
+		orderOutbox.Run(sigCtx, 60*time.Second)
 	})
 
 	producer, err := sarama.NewSyncProducer([]string{cfg.KafkaAddr()}, nil)
@@ -86,10 +82,10 @@ func main() {
 	defer producer.Close()
 
 	writer := pvz_worker_audit.OrderAuditLogProducer{
-		Context:    sigCtx,
-		Producer:   producer,
-		Tasks:      tasks,
-		OutboxRepo: orderOutboxRepo,
+		Context:  sigCtx,
+		Producer: producer,
+		Tasks:    tasks,
+		Outbox:   orderOutbox,
 	}
 
 	consumer, err := sarama.NewConsumer([]string{cfg.KafkaAddr()}, nil)
@@ -123,7 +119,7 @@ func main() {
 		log.Fatal("pvz.New: %w", err)
 	}
 
-	pvzService := pvz_order_service.New(orderRepo, *orderOutboxRepo, orderCache, txManager)
+	pvzService := pvz_order_service.New(orderRepo, *orderOutbox, orderCache, txManager)
 
 	httpHandler := pvz_http.New(sigCtx, pvzService)
 

@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type AuditLogRepo interface {
+type Outbox interface {
 	LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error)
 	MarkTaskAsFailed(ctx context.Context, id int64) error
 	DeleteTasks(ctx context.Context, ids []int64) error
@@ -20,10 +20,10 @@ type AuditLogRepo interface {
 }
 
 type OrderAuditLogProducer struct {
-	Context    context.Context
-	Producer   sarama.SyncProducer
-	Tasks      <-chan []pvz_domain.OrderOutboxTask
-	OutboxRepo AuditLogRepo
+	Context  context.Context
+	Producer sarama.SyncProducer
+	Tasks    <-chan []pvz_domain.OrderOutboxTask
+	Outbox   Outbox
 }
 
 func (w *OrderAuditLogProducer) Run() {
@@ -72,13 +72,13 @@ func (w *OrderAuditLogProducer) work(tasks []pvz_domain.OrderOutboxTask) error {
 
 		if err != nil {
 			log.Printf("Failed to send message to Kafka for task %d: %v", task.ID, err)
-			if ferr := w.OutboxRepo.MarkTaskAsFailed(w.Context, task.ID); ferr != nil {
+			if ferr := w.Outbox.MarkTaskAsFailed(w.Context, task.ID); ferr != nil {
 				log.Printf("MarkTaskAsFailed for task %d: %v", task.ID, ferr)
 			}
 			continue
 		}
 
-		if ferr := w.OutboxRepo.DeleteTask(w.Context, task.ID); ferr != nil {
+		if ferr := w.Outbox.DeleteTask(w.Context, task.ID); ferr != nil {
 			log.Printf("Failed to delete task %d after successful send (partition: %d, offset: %d): %v", task.ID, partition, offset, ferr)
 			continue
 		}
