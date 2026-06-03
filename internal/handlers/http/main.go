@@ -20,11 +20,11 @@ import (
 )
 
 type HTTPHandler struct {
-	pvz     *pvz_service.Pvz
+	pvz     *pvz_service.PvzService
 	context context.Context
 }
 
-func New(context context.Context, p *pvz_service.Pvz) *HTTPHandler {
+func New(context context.Context, p *pvz_service.PvzService) *HTTPHandler {
 	return &HTTPHandler{pvz: p, context: context}
 }
 

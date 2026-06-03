@@ -7,23 +7,17 @@ import (
 	"log"
 
 	"github.com/IBM/sarama"
-	"github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/infra/order_outbox"
+	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 )
 
-type Outbox interface {
-	LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error)
-	MarkTaskAsFailed(ctx context.Context, id int64) error
-	DeleteTasks(ctx context.Context, ids []int64) error
-	DeleteTask(ctx context.Context, id int64) error
-}
-
 type OrderAuditLogProducer struct {
 	Context  context.Context
 	Producer sarama.SyncProducer
-	Tasks    <-chan []pvz_domain.OrderOutboxTask
-	Outbox   Outbox
+	Tasks    <-chan []order_outbox.OrderOutboxTask
+	Outbox   pvz_order_service.Outbox
 }
 
 func (w *OrderAuditLogProducer) Run() {
@@ -51,7 +45,7 @@ func (w *OrderAuditLogProducer) Run() {
 	}
 }
 
-func (w *OrderAuditLogProducer) work(tasks []pvz_domain.OrderOutboxTask) error {
+func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error {
 
 	for _, task := range tasks {
 
@@ -115,7 +109,7 @@ func (c *OrderAuditLogPartitionConsumer) Run() {
 
 func (c *OrderAuditLogPartitionConsumer) log(job *sarama.ConsumerMessage) {
 	fmt.Println("----------- AUDIT LOG RECORD -----------")
-	var task pvz_domain.OrderOutboxTask
+	var task order_outbox.OrderOutboxTask
 	if err := json.Unmarshal(job.Value, &task); err != nil {
 		fmt.Printf("Failed to unmarshal audit log: %v\n", err)
 	} else {

@@ -1,3 +1,5 @@
+//go:generate mockgen -source=db.go -destination=mocks/db.go -package=mocks
+
 package pvz_ports
 
 import (

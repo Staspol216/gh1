@@ -6,7 +6,7 @@ import (
 
 	"github.com/Staspol216/gh1/internal/config"
 	"github.com/Staspol216/gh1/internal/infra/postgres"
-	"github.com/Staspol216/gh1/internal/infra/repository/order/postgres"
+	"github.com/Staspol216/gh1/internal/infra/repository/order"
 	"github.com/Staspol216/gh1/internal/infra/tx_manager"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
@@ -28,7 +28,7 @@ func main() {
 
 	database := db.NewDatabase(txManager)
 
-	repo, repoErr := order_repo.New(database)
+	repo, repoErr := order.NewOrderRepo(database)
 
 	if repoErr != nil {
 		log.Fatal(repoErr)

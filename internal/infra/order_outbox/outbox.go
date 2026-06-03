@@ -6,14 +6,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/ports"
 	"github.com/jackc/pgx/v4"
 )
 
 type OrderOutbox struct {
 	Db    pvz_ports.DB
-	Tasks chan<- []pvz_domain.OrderOutboxTask
+	Tasks chan<- []OrderOutboxTask
 }
 
 func (w *OrderOutbox) Run(ctx context.Context, interval time.Duration) {
@@ -43,7 +42,7 @@ func (w *OrderOutbox) Run(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func (w *OrderOutbox) AddTask(ctx context.Context, task *pvz_domain.OrderOutboxTask) (int64, error) {
+func (w *OrderOutbox) AddTask(ctx context.Context, task *OrderOutboxTask) (int64, error) {
 	query := `
 	INSERT INTO orders_statuses_outbox (
 		status,
@@ -69,8 +68,8 @@ func (w *OrderOutbox) AddTask(ctx context.Context, task *pvz_domain.OrderOutboxT
 	return id, err
 }
 
-func (w *OrderOutbox) LockPending(ctx context.Context) ([]pvz_domain.OrderOutboxTask, error) {
-	var tasks []pvz_domain.OrderOutboxTask
+func (w *OrderOutbox) LockPending(ctx context.Context) ([]OrderOutboxTask, error) {
+	var tasks []OrderOutboxTask
 
 	query := `WITH picked AS (
 		SELECT * FROM orders_statuses_outbox 

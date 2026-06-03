@@ -1,4 +1,4 @@
-package order_repo
+package order
 
 import (
 	"database/sql"

@@ -1,4 +1,4 @@
-package order_repo
+package order
 
 import (
 	"context"
@@ -16,7 +16,7 @@ type OrderRepo struct {
 	db pvz_ports.DB
 }
 
-func New(database pvz_ports.DB) (*OrderRepo, error) {
+func NewOrderRepo(database pvz_ports.DB) (*OrderRepo, error) {
 	return &OrderRepo{
 		db: database,
 	}, nil

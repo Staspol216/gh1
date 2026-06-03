@@ -13,17 +13,16 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/Staspol216/gh1/cmd/audit"
 	"github.com/Staspol216/gh1/internal/config"
-	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/handlers/grpc"
 	"github.com/Staspol216/gh1/internal/handlers/http"
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/infra/postgres"
-	"github.com/Staspol216/gh1/internal/infra/repository/order/postgres"
-	"github.com/Staspol216/gh1/internal/infra/repository/order/redis"
+	"github.com/Staspol216/gh1/internal/infra/repository/order"
 	"github.com/Staspol216/gh1/internal/infra/tx_manager"
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 )
 
@@ -46,16 +45,18 @@ func main() {
 	defer stop()
 
 	pool, err := pgxpool.Connect(ctx, cfg.DBConnString())
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	rdb := redis.NewClient(&redis.Options{
+		Addr: cfg.RedisAddr(),
+	})
+	defer rdb.Close()
+
 	txManager := tx_manager.New(pool, sigCtx)
 
-	orderCache := cache_order_repo.New(cfg)
-
-	defer orderCache.Rdb.Close()
+	orderCache := order.NewOrderCache(rdb)
 
 	if redisPingErr := orderCache.Healthcheck(sigCtx); redisPingErr != nil {
 		log.Fatal(redisPingErr)
@@ -63,7 +64,7 @@ func main() {
 
 	database := db.NewDatabase(txManager)
 
-	tasks := make(chan []pvz_domain.OrderOutboxTask, jobsCount)
+	tasks := make(chan []order_outbox.OrderOutboxTask, jobsCount)
 	defer close(tasks)
 
 	orderOutbox := &order_outbox.OrderOutbox{
@@ -113,13 +114,13 @@ func main() {
 		reader.Run()
 	})
 
-	orderRepo, err := order_repo.New(database)
+	orderRepo, err := order.NewOrderRepo(database)
 
 	if err != nil {
 		log.Fatal("pvz.New: %w", err)
 	}
 
-	pvzService := pvz_order_service.New(orderRepo, *orderOutbox, orderCache, txManager)
+	pvzService := pvz_order_service.NewPvzService(orderRepo, orderOutbox, orderCache, txManager)
 
 	httpHandler := pvz_http.New(sigCtx, pvzService)
 

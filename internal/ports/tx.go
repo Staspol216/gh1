@@ -1,3 +1,5 @@
+//go:generate mockgen -source=tx.go -destination=mocks/tx.go -package=mocks
+
 package pvz_ports
 
 import (

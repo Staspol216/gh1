@@ -1,5 +1,3 @@
-//go:generate mockgen -source=database.go -destination=mocks/database.go -package=mock_database
-
 package db
 
 import (

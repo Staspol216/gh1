@@ -26,7 +26,7 @@ type OrderParams struct {
 	Worth          float64   `json:"worth"`
 }
 
-func New(data *OrderParams) *Order {
+func NewOrder(data *OrderParams) *Order {
 	return &Order{
 		ExpirationDate: data.ExpirationDate,
 		RecipientID:    data.RecipientId,
@@ -55,6 +55,9 @@ func (o *Order) IsExpired() bool {
 }
 
 func (o *Order) CanBeRefunded() bool {
+	if !o.IsDelivered() {
+		return false
+	}
 	const DaysForRefunding = 2
 	refundExpirationDate := o.DeliveredDate.AddDate(0, 0, DaysForRefunding)
 	canBeRefunded := o.DeliveredDate.Compare(refundExpirationDate) == -1
@@ -64,20 +67,24 @@ func (o *Order) CanBeRefunded() bool {
 func (o *Order) Refund() {
 	now := time.Now()
 	o.RefundedDate = &now
-	o.SetStatus(OrderStatusRefunded)
+	o.setStatus(OrderStatusRefunded)
 }
 
 func (o *Order) Deliver() {
 	now := time.Now()
 	o.DeliveredDate = &now
-	o.SetStatus(OrderStatusDelivered)
+	o.setStatus(OrderStatusDelivered)
 }
 
 func (o *Order) Expire() {
-	o.SetStatus(OrderStatusExpired)
+	o.setStatus(OrderStatusExpired)
 }
 
-func (o *Order) SetStatus(status OrderStatus) {
+func (o *Order) Received() {
+	o.setStatus(OrderStatusReceived)
+}
+
+func (o *Order) setStatus(status OrderStatus) {
 	o.Status = status
 }
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	pvz_order_service "github.com/Staspol216/gh1/internal/service/order"
 	orders_proto "github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"google.golang.org/grpc/codes"
@@ -13,11 +14,11 @@ import (
 )
 
 type GrpcHandler struct {
-	service *pvz_order_service.Pvz
+	service *pvz_order_service.PvzService
 	orders_proto.UnimplementedOrdersServiceServer
 }
 
-func New(p *pvz_order_service.Pvz) *GrpcHandler {
+func New(p *pvz_order_service.PvzService) *GrpcHandler {
 	return &GrpcHandler{
 		service: p,
 	}
@@ -78,12 +79,12 @@ func (s *GrpcHandler) DeleteOrder(ctx context.Context, req *orders_proto.DeleteO
 	return &orders_proto.DeleteOrderResponse{}, nil
 }
 
-func (s *GrpcHandler) createOutboxTask() *pvz_domain.OrderOutboxTask {
+func (s *GrpcHandler) createOutboxTask() *order_outbox.OrderOutboxTask {
 
 	createdAt := time.Now()
 
-	log := &pvz_domain.OrderOutboxTask{
-		Status:    pvz_domain.Created,
+	log := &order_outbox.OrderOutboxTask{
+		Status:    order_outbox.Created,
 		CreatedAt: createdAt,
 	}
 
