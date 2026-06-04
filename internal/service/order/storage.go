@@ -19,6 +19,7 @@ type OrderStorage interface {
 	Delete(ctx context.Context, orderId int64) error
 	Update(ctx context.Context, updatedOrder *pvz_domain.Order) error
 	GetByID(ctx context.Context, orderId int64) (*pvz_domain.Order, error)
+	GetRecipientOrderByID(ctx context.Context, id int64, recipientId int64) (*pvz_domain.Order, error)
 	GetByIDs(ctx context.Context, orderIds []int64) ([]*pvz_domain.Order, error)
 }
 

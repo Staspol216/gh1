@@ -11,20 +11,20 @@ import (
 	"strings"
 	"time"
 
-	pvz_config "github.com/Staspol216/gh1/internal/config"
-	pvz_domain_order "github.com/Staspol216/gh1/internal/domain/order"
-	pvz_service "github.com/Staspol216/gh1/internal/service/order"
+	"github.com/Staspol216/gh1/internal/config"
+	"github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 )
 
 type HTTPHandler struct {
-	pvz     *pvz_service.PvzService
+	pvz     *pvz_order_service.PvzService
 	context context.Context
 }
 
-func New(context context.Context, p *pvz_service.PvzService) *HTTPHandler {
+func New(context context.Context, p *pvz_order_service.PvzService) *HTTPHandler {
 	return &HTTPHandler{pvz: p, context: context}
 }
 
@@ -36,7 +36,10 @@ func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("pong"))
+		_, err := w.Write([]byte("pong"))
+		if err != nil {
+			return
+		}
 	})
 
 	r.Route("/orders", func(r chi.Router) {
@@ -49,7 +52,7 @@ func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 		r.Route("/{orderID}", func(r chi.Router) {
 			r.Use(OrderCtx)
 
-			r.With(logger).Get("/", h.GetOrderByID)
+			r.With(logger).Get("/", h.GetOrder)
 
 			r.With(logger).Delete("/", h.DeleteOrder)
 		})
@@ -101,25 +104,49 @@ const (
 	ctxKeyLimit   ctxKey = "limit"
 )
 
+const recipientIDQueryKey = "recipientID"
+
 func OrderCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var orderID int64
 
 		id := chi.URLParam(r, "orderID")
 		if id == "" {
-			render.Render(w, r, ErrNotFound)
+			err := render.Render(w, r, ErrInvalidRequest(errors.New("order id is required")))
+			if err != nil {
+				return
+			}
 			return
 		}
 
-		parsedId, parseIntErr := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
+		parsedOrderId, parseIntErr := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
 		if parseIntErr != nil {
-			render.Render(w, r, ErrInternal(parseIntErr))
+			err := render.Render(w, r, ErrInternal(parseIntErr))
+			if err != nil {
+				return
+			}
 			return
 		}
 
-		orderID = parsedId
+		recipientID := r.URL.Query().Get(recipientIDQueryKey)
+		if recipientID == "" {
+			err := render.Render(w, r, ErrInvalidRequest(errors.New("user id is required")))
+			if err != nil {
+				return
+			}
+			return
+		}
 
-		ctx := context.WithValue(r.Context(), ctxKeyOrderID, orderID)
+		parsedRecipientId, parseIntErr := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
+		if parseIntErr != nil {
+			err := render.Render(w, r, ErrInternal(parseIntErr))
+			if err != nil {
+				return
+			}
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), ctxKeyOrderID, parsedOrderId)
+		ctx = context.WithValue(ctx, recipientIDQueryKey, parsedRecipientId)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -128,7 +155,12 @@ func logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 
-		defer r.Body.Close()
+		defer func(Body io.ReadCloser) {
+			cErr := Body.Close()
+			if cErr != nil {
+				return
+			}
+		}(r.Body)
 
 		if err != nil {
 			log.Println(err.Error())
@@ -183,7 +215,7 @@ func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
 	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
 
-	pagination := &pvz_domain_order.Pagination{
+	pagination := &pvz_domain.Pagination{
 		Offset: offset,
 		Limit:  limit,
 	}
@@ -191,13 +223,19 @@ func (h *HTTPHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	orders, getOrdersErr := h.pvz.GetOrders(r.Context(), pagination)
 
 	if getOrdersErr != nil {
-		render.Render(w, r, ErrInternal(getOrdersErr))
+		eErr := render.Render(w, r, ErrInternal(getOrdersErr))
+		if eErr != nil {
+			return
+		}
 		return
 	}
 
 	err := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if err != nil {
-		render.Render(w, r, ErrRender(err))
+		rErr := render.Render(w, r, ErrRender(err))
+		if rErr != nil {
+			return
+		}
 	}
 }
 
@@ -205,7 +243,7 @@ func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) 
 	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
 	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
 
-	pagination := &pvz_domain_order.Pagination{
+	pagination := &pvz_domain.Pagination{
 		Offset: offset,
 		Limit:  limit,
 	}
@@ -213,13 +251,19 @@ func (h *HTTPHandler) ListOrdersHistory(w http.ResponseWriter, r *http.Request) 
 	orders, err := h.pvz.GetHistory(r.Context(), pagination)
 
 	if err != nil {
-		render.Render(w, r, ErrInternal(err))
+		eErr := render.Render(w, r, ErrInternal(err))
+		if eErr != nil {
+			return
+		}
 		return
 	}
 
 	renderErr := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if renderErr != nil {
-		render.Render(w, r, ErrRender(renderErr))
+		eErr := render.Render(w, r, ErrRender(renderErr))
+		if eErr != nil {
+			return
+		}
 	}
 }
 
@@ -227,7 +271,7 @@ func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request)
 	offset, _ := r.Context().Value(ctxKeyOffset).(int64)
 	limit, _ := r.Context().Value(ctxKeyLimit).(int64)
 
-	pagination := &pvz_domain_order.Pagination{
+	pagination := &pvz_domain.Pagination{
 		Offset: offset,
 		Limit:  limit,
 	}
@@ -235,91 +279,140 @@ func (h *HTTPHandler) ListRefundedOrders(w http.ResponseWriter, r *http.Request)
 	orders, err := h.pvz.GetAllRefunds(r.Context(), pagination)
 
 	if err != nil {
-		render.Render(w, r, ErrInternal(err))
+		eErr := render.Render(w, r, ErrInternal(err))
+		if eErr != nil {
+			return
+		}
 		return
 	}
 
 	renderErr := render.RenderList(w, r, NewOrdersListResponse(orders))
 	if renderErr != nil {
-		render.Render(w, r, ErrRender(renderErr))
+		eErr := render.Render(w, r, ErrRender(renderErr))
+		if eErr != nil {
+			return
+		}
 	}
 }
 
-func (h *HTTPHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	orderID, ok := r.Context().Value(ctxKeyOrderID).(int64)
 	if !ok {
-		render.Render(w, r, ErrInternal(errors.New("cannot get order id from request context")))
+		err := render.Render(w, r, ErrInternal(errors.New("cannot get order id from request context")))
+		if err != nil {
+			return
+		}
 		return
 	}
 
-	order, err := h.pvz.GetOrderByID(r.Context(), orderID)
+	recipientID, ok := r.Context().Value(recipientIDQueryKey).(int64)
+	if !ok {
+		eErr := render.Render(w, r, ErrInternal(errors.New("cannot get recipient id from request context")))
+		if eErr != nil {
+			return
+		}
+		return
+	}
+
+	order, err := h.pvz.GetOrderByID(r.Context(), orderID, recipientID)
 	if err != nil {
-		render.Render(w, r, ErrInternal(err))
+		eErr := render.Render(w, r, ErrInternal(err))
+		if eErr != nil {
+			return
+		}
 		return
 	}
 
 	renderErr := render.Render(w, r, NewOrderResponse(order))
 	if renderErr != nil {
-		render.Render(w, r, ErrRender(renderErr))
+		eErr := render.Render(w, r, ErrRender(renderErr))
+		if eErr != nil {
+			return
+		}
 	}
 }
 
 func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	data := &OrderCreateRequest{}
 	if err := render.Bind(r, data); err != nil {
-		render.Render(w, r, ErrInvalidRequest(err))
+		eErr := render.Render(w, r, ErrInvalidRequest(err))
+		if eErr != nil {
+			return
+		}
 		return
 	}
 
 	if res := time.Now().Compare(data.Order.ExpirationDate); res == 1 {
-		render.Render(w, r, ErrInvalidRequest(errors.New("expiration date can't be in the past")))
+		err := render.Render(w, r, ErrInvalidRequest(errors.New("expiration date can't be in the past")))
+		if err != nil {
+			return
+		}
 		return
 	}
 
 	orderId, err := h.pvz.AcceptFromCourier(r.Context(), data.Order, data.PackagingType, data.MembranaIncluded)
 
 	if err != nil {
-		render.Render(w, r, ErrInternal(err))
+		if eErr := render.Render(w, r, ErrInternal(err)); eErr != nil {
+			return
+		}
 	}
 
 	renderError := render.Render(w, r, NewOrderIDResponse(*orderId))
 	if renderError != nil {
-		render.Render(w, r, ErrRender(renderError))
+		if eErr := render.Render(w, r, ErrRender(renderError)); eErr != nil {
+			return
+		}
 	}
 }
 
 func (h *HTTPHandler) UpdateOrders(w http.ResponseWriter, r *http.Request) {
 	data := &OrderUpdateRequest{}
 	if err := render.Bind(r, data); err != nil {
-		render.Render(w, r, ErrInvalidRequest(err))
-		return
+		if eErr := render.Render(w, r, ErrInvalidRequest(err)); eErr != nil {
+			return
+		}
 	}
 
 	err := h.pvz.ServeRecipient(r.Context(), data.OrderIDs, data.RecipientID, data.Action)
 	if err != nil {
-		render.Render(w, r, ErrInternal(err))
+		if rErr := render.Render(w, r, ErrInternal(err)); rErr != nil {
+			return
+		}
 	}
 
 	renderErr := render.Render(w, r, NewOrderUpdateResponse())
 	if renderErr != nil {
-		render.Render(w, r, ErrRender(err))
+		rErr := render.Render(w, r, ErrRender(renderErr))
+		if rErr != nil {
+			return
+		}
 	}
 }
 
 func (h *HTTPHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 	orderID, ok := r.Context().Value(ctxKeyOrderID).(int64)
 	if !ok {
-		render.Render(w, r, ErrInternal(errors.New("cannot get order id from requset context")))
+		err := render.Render(w, r, ErrInternal(errors.New("cannot get order id from request context")))
+		if err != nil {
+			return
+		}
 		return
 	}
 
 	returnErr := h.pvz.ReturnToCourier(r.Context(), orderID)
 	if returnErr != nil {
-		render.Render(w, r, ErrInternal(returnErr))
+		err := render.Render(w, r, ErrInternal(returnErr))
+		if err != nil {
+			return
+		}
 	}
 
 	renderErr := render.Render(w, r, NewOrderDeletedResponse())
 	if renderErr != nil {
-		render.Render(w, r, ErrRender(renderErr))
+		err := render.Render(w, r, ErrRender(renderErr))
+		if err != nil {
+			return
+		}
 	}
 }

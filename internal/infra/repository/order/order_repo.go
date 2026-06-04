@@ -219,6 +219,18 @@ func (r *OrderRepo) GetByIDs(ctx context.Context, ids []int64) ([]*pvz_domain.Or
 	return orders, nil
 }
 
+func (r *OrderRepo) GetRecipientOrderByID(ctx context.Context, id int64, recipientId int64) (*pvz_domain.Order, error) {
+	var a orderDTO
+	err := r.db.Get(ctx, &a, "SELECT * FROM orders WHERE id=$1 AND recipient_id=$2", id, recipientId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("order %d not found", id)
+		}
+		return nil, err
+	}
+	return transformOrderDtoToModel(&a), nil
+}
+
 func (r *OrderRepo) GetByID(ctx context.Context, id int64) (*pvz_domain.Order, error) {
 	var a orderDTO
 	err := r.db.Get(ctx, &a, "SELECT * FROM orders WHERE id=$1", id)

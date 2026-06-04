@@ -37,13 +37,13 @@ func (s *PvzService) GetOrders(ctx context.Context, pagination *pvz_domain.Pagin
 	return s.storage.GetList(ctx, pagination)
 }
 
-func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64) (*pvz_domain.Order, error) {
+func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64, recipientId int64) (*pvz_domain.Order, error) {
 	order, err := s.cache.GetOrder(ctx, orderId)
 	if err == nil {
 		return order, nil
 	}
 
-	order, err = s.storage.GetByID(ctx, orderId)
+	order, err = s.storage.GetRecipientOrderByID(ctx, orderId, recipientId)
 	if err != nil {
 		return nil, err
 	}
@@ -68,40 +68,9 @@ func (s *PvzService) AcceptFromCourier(ctx context.Context, payload *pvz_domain.
 	var order *pvz_domain.Order
 
 	txError := s.txManager.RunReadCommitted(func(ctxTx context.Context) error {
-		newOrder := pvz_domain.NewOrder(payload)
-		if err := newOrder.ApplyPackaging(packagingType, additionalMembrana); err != nil {
-			return err
-		}
-
-		newOrder.Received()
-
-		id, err := s.storage.Add(ctxTx, newOrder)
+		result, err := s.ProcessOrderReceive(ctxTx, payload, packagingType, additionalMembrana)
 		if err != nil {
 			return err
-		}
-
-		orderRecord := pvz_domain.NewOrderRecordReceived()
-
-		if _, er := s.storage.AddHistoryRecord(ctxTx, orderRecord, id); er != nil {
-			return er
-		}
-
-		result, err := s.storage.GetByID(ctxTx, id)
-		if err != nil {
-			return err
-		}
-
-		task := &order_outbox.OrderOutboxTask{
-			Status:      order_outbox.Created,
-			CreatedAt:   time.Now(),
-			OrderStatus: orderRecord.Status,
-			Description: orderRecord.Description,
-			Timestamp:   orderRecord.Timestamp,
-		}
-
-		_, outboxErr := s.outbox.AddTask(ctxTx, task)
-		if outboxErr != nil {
-			return outboxErr
 		}
 
 		order = result
@@ -118,6 +87,45 @@ func (s *PvzService) AcceptFromCourier(ctx context.Context, payload *pvz_domain.
 	}
 
 	return &order.ID, txError
+}
+
+func (s *PvzService) ProcessOrderReceive(ctxTx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (*pvz_domain.Order, error) {
+	newOrder := pvz_domain.NewOrder(payload)
+	if err := newOrder.ApplyPackaging(packagingType, additionalMembrana); err != nil {
+		return nil, err
+	}
+
+	newOrder.Received()
+
+	id, err := s.storage.Add(ctxTx, newOrder)
+	if err != nil {
+		return nil, err
+	}
+
+	orderRecord := pvz_domain.NewOrderRecordReceived()
+
+	if _, er := s.storage.AddHistoryRecord(ctxTx, orderRecord, id); er != nil {
+		return nil, er
+	}
+
+	result, err := s.storage.GetByID(ctxTx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	task := &order_outbox.OrderOutboxTask{
+		Status:      order_outbox.Created,
+		CreatedAt:   time.Now(),
+		OrderStatus: orderRecord.Status,
+		Description: orderRecord.Description,
+		Timestamp:   orderRecord.Timestamp,
+	}
+
+	_, outboxErr := s.outbox.AddTask(ctxTx, task)
+	if outboxErr != nil {
+		return nil, outboxErr
+	}
+	return result, nil
 }
 
 func (s *PvzService) ReturnToCourier(ctx context.Context, orderId int64) error {
@@ -200,13 +208,9 @@ func (s *PvzService) RefundOrders(ctx context.Context, ordersIds []int64, recipi
 }
 
 func (s *PvzService) ProcessOrderRefund(ctx context.Context, orderId int64, recipientId int64) (*pvz_domain.Order, error) {
-	order, err := s.storage.GetByID(ctx, orderId)
+	order, err := s.storage.GetRecipientOrderByID(ctx, orderId, recipientId)
 	if err != nil {
 		return nil, err
-	}
-
-	if order.RecipientID != recipientId {
-		return nil, fmt.Errorf("order %d does not belong to recipient %d", orderId, recipientId)
 	}
 
 	if !order.CanBeRefunded() {
@@ -270,13 +274,9 @@ func (s *PvzService) DeliverOrders(ctx context.Context, ordersIds []int64, recip
 }
 
 func (s *PvzService) ProcessOrderDeliver(ctxTx context.Context, orderId int64, recipientId int64) (*pvz_domain.Order, error) {
-	order, err := s.storage.GetByID(ctxTx, orderId)
+	order, err := s.storage.GetRecipientOrderByID(ctxTx, orderId, recipientId)
 	if err != nil {
 		return nil, err
-	}
-
-	if order.RecipientID != recipientId {
-		return nil, fmt.Errorf("order %d does not belong to recipient %d", orderId, recipientId)
 	}
 
 	if !order.IsReceived() {

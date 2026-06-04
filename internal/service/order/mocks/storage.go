@@ -146,6 +146,21 @@ func (mr *MockOrderStorageMockRecorder) GetList(ctx, pagination any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetList", reflect.TypeOf((*MockOrderStorage)(nil).GetList), ctx, pagination)
 }
 
+// GetRecipientOrderByID mocks base method.
+func (m *MockOrderStorage) GetRecipientOrderByID(ctx context.Context, id, recipientId int64) (*pvz_domain.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRecipientOrderByID", ctx, id, recipientId)
+	ret0, _ := ret[0].(*pvz_domain.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRecipientOrderByID indicates an expected call of GetRecipientOrderByID.
+func (mr *MockOrderStorageMockRecorder) GetRecipientOrderByID(ctx, id, recipientId any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecipientOrderByID", reflect.TypeOf((*MockOrderStorage)(nil).GetRecipientOrderByID), ctx, id, recipientId)
+}
+
 // Update mocks base method.
 func (m *MockOrderStorage) Update(ctx context.Context, updatedOrder *pvz_domain.Order) error {
 	m.ctrl.T.Helper()
