@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/Staspol216/gh1/cmd/audit"
 	"github.com/Staspol216/gh1/internal/config"
 	"github.com/Staspol216/gh1/internal/handlers/grpc"
 	"github.com/Staspol216/gh1/internal/handlers/http"
@@ -20,6 +19,7 @@ import (
 	"github.com/Staspol216/gh1/internal/infra/repository/order"
 	"github.com/Staspol216/gh1/internal/infra/tx_manager"
 	"github.com/Staspol216/gh1/internal/service/order"
+	"github.com/Staspol216/gh1/internal/service/order_audit"
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -82,7 +82,7 @@ func main() {
 	}
 	defer producer.Close()
 
-	writer := pvz_worker_audit.OrderAuditLogProducer{
+	orderAuditLogProducer := order_audit.OrderAuditLogProducer{
 		Context:  sigCtx,
 		Producer: producer,
 		Tasks:    tasks,
@@ -101,17 +101,17 @@ func main() {
 	}
 	defer partConsumer.Close()
 
-	reader := pvz_worker_audit.OrderAuditLogPartitionConsumer{
+	orderAuditLogConsumer := order_audit.OrderAuditLogPartitionConsumer{
 		Context:   sigCtx,
 		Partition: partConsumer,
 	}
 
 	wg.Go(func() {
-		writer.Run()
+		orderAuditLogProducer.Run()
 	})
 
 	wg.Go(func() {
-		reader.Run()
+		orderAuditLogConsumer.Run()
 	})
 
 	orderRepo, err := order.NewOrderRepo(database)
