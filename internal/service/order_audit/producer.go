@@ -3,12 +3,14 @@ package order_audit
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/Staspol216/gh1/pkg/monitoring"
+	"github.com/Staspol216/gh1/pkg/tracing"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -48,12 +50,17 @@ func (w *OrderAuditLogProducer) Run() {
 func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error {
 
 	for _, task := range tasks {
+		startTime := time.Now()
+		span, _ := tracing.StartSpanFromContext(w.Context, "Kafka.ProduceOrderAuditLog")
+		span.SetTag("task_id", task.ID)
+		span.SetTag("topic", "order_audit_logs")
 
 		requestID := uuid.New().String()
 		bytes, err := json.Marshal(task)
 		if err != nil {
 			app_logger.MyLogger.Error("failed to marshal JSON for task", zap.Int64("task_id", task.ID), zap.Error(err))
 			monitoring.ObserveKafkaMessage("marshal", err)
+			tracing.FinishSpan(span, startTime, err)
 			continue
 		}
 		monitoring.ObserveKafkaMessage("marshal", nil)
@@ -72,9 +79,12 @@ func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error
 			if ferr := w.Outbox.MarkTaskAsFailed(w.Context, task.ID); ferr != nil {
 				app_logger.MyLogger.Error("failed to mark task as failed", zap.Int64("task_id", task.ID), zap.Error(ferr))
 			}
+			tracing.FinishSpan(span, startTime, err)
 			continue
 		}
 		monitoring.ObserveKafkaMessage("produce", nil)
+		span.SetTag("partition", partition)
+		span.SetTag("offset", offset)
 
 		if ferr := w.Outbox.DeleteTask(w.Context, task.ID); ferr != nil {
 			app_logger.MyLogger.Error("failed to delete task after successful send",
@@ -83,9 +93,11 @@ func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error
 				zap.Int64("offset", offset),
 				zap.Error(ferr),
 			)
+			tracing.FinishSpan(span, startTime, ferr)
 			continue
 		}
 		monitoring.ObserveKafkaMessage("ack", nil)
+		tracing.FinishSpan(span, startTime, nil)
 	}
 
 	return nil

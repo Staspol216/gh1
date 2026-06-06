@@ -22,6 +22,7 @@ import (
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/Staspol216/gh1/pkg/monitoring"
+	"github.com/Staspol216/gh1/pkg/tracing"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -40,6 +41,8 @@ func main() {
 	if err != nil {
 		app_logger.MyLogger.Fatal("load config error", zap.Error(err))
 	}
+	_, tracingCloser := tracing.InitTracer(cfg.AppName, cfg.JaegerCollectorEndpoint())
+	defer tracingCloser.Close()
 
 	wg := &sync.WaitGroup{}
 
@@ -134,7 +137,7 @@ func main() {
 		app_logger.MyLogger.Fatal("listen tcp", zap.Error(err), zap.Int("port", cfg.BackendGRPCPort))
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(tracing.UnaryInterceptor))
 
 	grcpHandler := pvz_grpc.New(pvzService)
 

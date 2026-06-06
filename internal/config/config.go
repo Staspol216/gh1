@@ -37,6 +37,11 @@ type Config struct {
 	// Kafka
 	KafkaHost string `envconfig:"KAFKA_HOST" required:"true"`
 	KafkaPort int    `envconfig:"KAFKA_PORT" default:"9092"`
+
+	// Jaeger
+	JaegerHost          string `envconfig:"JAEGER_HOST" default:"localhost"`
+	JaegerCollectorPort int    `envconfig:"JAEGER_COLLECTOR_PORT" default:"14268"`
+	JaegerUIPort        int    `envconfig:"JAEGER_UI_PORT" default:"16686"`
 }
 
 // Load loads env variables into a Config struct.
@@ -68,6 +73,9 @@ func Load() (*Config, error) {
 		zap.Int("redis_port", cfg.RedisPort),
 		zap.String("kafka_host", cfg.KafkaHost),
 		zap.Int("kafka_port", cfg.KafkaPort),
+		zap.String("jaeger_host", cfg.JaegerHost),
+		zap.Int("jaeger_collector_port", cfg.JaegerCollectorPort),
+		zap.Int("jaeger_ui_port", cfg.JaegerUIPort),
 	)
 
 	return &cfg, nil
@@ -98,6 +106,10 @@ func (c *Config) RedisAddr() string {
 
 func (c *Config) KafkaAddr() string {
 	return c.KafkaHost + ":" + strconv.Itoa(c.KafkaPort)
+}
+
+func (c *Config) JaegerCollectorEndpoint() string {
+	return "http://" + c.JaegerHost + ":" + strconv.Itoa(c.JaegerCollectorPort) + "/api/traces"
 }
 
 func (c *Config) HTTPAddr() string {

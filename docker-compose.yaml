@@ -13,6 +13,8 @@ services:
         condition: service_started
       redis:
         condition: service_started
+      jaeger:
+        condition: service_started
     env_file:
       - ./.env
     ports:
@@ -72,6 +74,14 @@ services:
       - "${REDIS_INSIGHT_PORT}:${REDIS_INSIGHT_PORT}"
     depends_on:
       - redis
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.75.0
+    env_file:
+      - ./.env
+    ports:
+      - "${JAEGER_UI_PORT}:16686"
+      - "${JAEGER_COLLECTOR_PORT}:14268"
 
 volumes:
   pgdata:

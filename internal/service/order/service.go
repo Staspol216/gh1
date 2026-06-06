@@ -12,6 +12,7 @@ import (
 	"github.com/Staspol216/gh1/internal/ports"
 	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/Staspol216/gh1/pkg/monitoring"
+	"github.com/Staspol216/gh1/pkg/tracing"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -38,6 +39,13 @@ func NewPvzService(
 }
 
 func (s *PvzService) GetOrders(ctx context.Context, pagination *pvz_domain.Pagination) (orders []*pvz_domain.Order, err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.GetOrders")
+	span.SetTag("offset", pagination.Offset)
+	span.SetTag("limit", pagination.Limit)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("get_orders", err)
 	}()
@@ -46,18 +54,28 @@ func (s *PvzService) GetOrders(ctx context.Context, pagination *pvz_domain.Pagin
 }
 
 func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64, recipientId int64) (result *pvz_domain.Order, err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.GetOrderByID")
+	span.SetTag("order_id", orderId)
+	span.SetTag("recipient_id", recipientId)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("get_order_by_id", err)
 	}()
 
 	order, err := s.cache.GetOrder(ctx, orderId)
 	if err == nil {
+		span.SetTag("cache", "hit")
 		monitoring.ObserveCacheOperation("get_order_hit", nil)
 		return order, nil
 	}
 	if errors.Is(err, redis.Nil) {
+		span.SetTag("cache", "miss")
 		monitoring.ObserveCacheOperation("get_order_miss", nil)
 	} else {
+		span.SetTag("cache", "error")
 		monitoring.ObserveCacheOperation("get_order_error", err)
 	}
 
@@ -80,6 +98,12 @@ func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64, recipientI
 }
 
 func (s *PvzService) GetOrdersByIDs(ctx context.Context, ordersIds []int64) (orders []*pvz_domain.Order, err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.GetOrdersByIDs")
+	span.SetTag("orders_count", len(ordersIds))
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("get_orders_by_ids", err)
 	}()
@@ -94,6 +118,19 @@ func (s *PvzService) GetOrdersByIDs(ctx context.Context, ordersIds []int64) (ord
 }
 
 func (s *PvzService) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (orderID *int64, err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.AcceptFromCourier")
+	span.SetTag("packaging_type", packagingType)
+	span.SetTag("membrana_included", additionalMembrana)
+	if payload != nil {
+		span.SetTag("recipient_id", payload.RecipientId)
+	}
+	defer func() {
+		if orderID != nil {
+			span.SetTag("order_id", *orderID)
+		}
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("accept_from_courier", err)
 	}()
@@ -164,6 +201,12 @@ func (s *PvzService) ProcessOrderReceive(ctxTx context.Context, payload *pvz_dom
 }
 
 func (s *PvzService) ReturnToCourier(ctx context.Context, orderId int64) (err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.ReturnToCourier")
+	span.SetTag("order_id", orderId)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("return_to_courier", err)
 	}()
@@ -198,6 +241,14 @@ func (s *PvzService) ReturnToCourier(ctx context.Context, orderId int64) (err er
 }
 
 func (s *PvzService) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId int64, action string) (err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.ServeRecipient")
+	span.SetTag("orders_count", len(ordersIds))
+	span.SetTag("recipient_id", recipientId)
+	span.SetTag("action", action)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("serve_recipient", err)
 	}()
@@ -221,6 +272,13 @@ func (s *PvzService) ServeRecipient(ctx context.Context, ordersIds []int64, reci
 }
 
 func (s *PvzService) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) (err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.RefundOrders")
+	span.SetTag("orders_count", len(ordersIds))
+	span.SetTag("recipient_id", recipientId)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("refund_orders", err)
 	}()
@@ -292,6 +350,13 @@ func (s *PvzService) ProcessOrderRefund(ctx context.Context, orderId int64, reci
 }
 
 func (s *PvzService) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) (err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.DeliverOrders")
+	span.SetTag("orders_count", len(ordersIds))
+	span.SetTag("recipient_id", recipientId)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("deliver_orders", err)
 	}()
@@ -393,6 +458,13 @@ func (s *PvzService) ProcessOrderDeliver(ctxTx context.Context, orderId int64, r
 }
 
 func (s *PvzService) GetAllRefunds(ctx context.Context, pagination *pvz_domain.Pagination) (result []*pvz_domain.Order, err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.GetAllRefunds")
+	span.SetTag("offset", pagination.Offset)
+	span.SetTag("limit", pagination.Limit)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("get_all_refunds", err)
 	}()
@@ -414,6 +486,13 @@ func (s *PvzService) GetAllRefunds(ctx context.Context, pagination *pvz_domain.P
 }
 
 func (s *PvzService) GetHistory(ctx context.Context, pagination *pvz_domain.Pagination) (result []*pvz_domain.Order, err error) {
+	startTime := time.Now()
+	span, ctx := tracing.StartSpanFromContext(ctx, "OrderService.GetHistory")
+	span.SetTag("offset", pagination.Offset)
+	span.SetTag("limit", pagination.Limit)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
 	defer func() {
 		monitoring.ObserveOrderOperation("get_history", err)
 	}()

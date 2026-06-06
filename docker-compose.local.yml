@@ -59,5 +59,13 @@ services:
     ports:
       - "${KAFKA_PORT}:${KAFKA_PORT}"
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.75.0
+    env_file:
+      - ./.env.local
+    ports:
+      - "${JAEGER_UI_PORT}:16686"
+      - "${JAEGER_COLLECTOR_PORT}:14268"
+
 volumes:
   pgdata:

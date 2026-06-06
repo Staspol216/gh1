@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/Staspol216/gh1/pkg/monitoring"
+	"github.com/Staspol216/gh1/pkg/tracing"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
@@ -36,6 +38,7 @@ func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Use(tracingMiddleware)
 	r.Use(metricsMiddleware)
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +142,7 @@ func OrderCtx(next http.Handler) http.Handler {
 			return
 		}
 
-		parsedRecipientId, parseIntErr := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
+		parsedRecipientId, parseIntErr := strconv.ParseInt(strings.TrimSpace(recipientID), 10, 64)
 		if parseIntErr != nil {
 			err := render.Render(w, r, ErrInternal(parseIntErr))
 			if err != nil {
@@ -181,6 +184,27 @@ func metricsMiddleware(next http.Handler) http.Handler {
 
 		route := chi.RouteContext(r.Context()).RoutePattern()
 		monitoring.ObserveHTTPRequest(r.Method, route, recorder.statusCode, time.Since(startTime))
+	})
+}
+
+func tracingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+		span, ctx := tracing.StartSpanFromContext(r.Context(), "HTTP request")
+		span.SetTag("component", "http")
+		span.SetTag("http.method", r.Method)
+		span.SetTag("http.url", r.URL.Path)
+
+		recorder := &responseStatusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(recorder, r.WithContext(ctx))
+
+		route := chi.RouteContext(ctx).RoutePattern()
+		span.SetTag("http.route", route)
+		span.SetTag("http.status_code", recorder.statusCode)
+		if recorder.statusCode >= http.StatusInternalServerError {
+			span.SetTag("error", true)
+		}
+		tracing.FinishSpan(span, startTime, nil)
 	})
 }
 
@@ -355,6 +379,7 @@ func (h *HTTPHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println(recipientID)
 	order, err := h.pvz.GetOrderByID(r.Context(), orderID, recipientID)
 	if err != nil {
 		eErr := render.Render(w, r, ErrInternal(err))

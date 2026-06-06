@@ -8,6 +8,7 @@ import (
 	"github.com/Staspol216/gh1/internal/ports"
 	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/Staspol216/gh1/pkg/monitoring"
+	"github.com/Staspol216/gh1/pkg/tracing"
 	"github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 )
@@ -27,27 +28,44 @@ func (w *OrderOutbox) Run(ctx context.Context, interval time.Duration) {
 			app_logger.MyLogger.Info("outbox worker finished by context done")
 			return
 		case <-ticker.C:
+			startTime := time.Now()
+			span, _ := tracing.StartSpanFromContext(ctx, "Outbox.LockPendingBatch")
 			tasks, err := w.LockPending(ctx)
 
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					app_logger.MyLogger.Info("there are no tasks for sending to broker")
 					monitoring.ObserveOutboxBatch("empty", 0)
+					span.SetTag("tasks_count", 0)
+					tracing.FinishSpan(span, startTime, nil)
 					return
 				}
 
 				app_logger.MyLogger.Error("failed to fetch outbox tasks", zap.Error(err))
 				monitoring.ObserveOutboxBatch("error", 0)
+				tracing.FinishSpan(span, startTime, err)
 				return
 			}
 
+			span.SetTag("tasks_count", len(tasks))
+			tracing.FinishSpan(span, startTime, nil)
 			monitoring.ObserveOutboxBatch("success", len(tasks))
 			w.Tasks <- tasks
 		}
 	}
 }
 
-func (w *OrderOutbox) AddTask(ctx context.Context, task *OrderOutboxTask) (int64, error) {
+func (w *OrderOutbox) AddTask(ctx context.Context, task *OrderOutboxTask) (id int64, err error) {
+	startTime := time.Now()
+	span, _ := tracing.StartSpanFromContext(ctx, "Outbox.AddTask")
+	span.SetTag("order_status", string(task.OrderStatus))
+	defer func() {
+		if id != 0 {
+			span.SetTag("task_id", id)
+		}
+		tracing.FinishSpan(span, startTime, err)
+	}()
+
 	query := `
 	INSERT INTO orders_statuses_outbox (
 		status,
@@ -65,8 +83,7 @@ func (w *OrderOutbox) AddTask(ctx context.Context, task *OrderOutboxTask) (int64
 		task.Timestamp,
 	)
 
-	var id int64
-	err := row.Scan(&id)
+	err = row.Scan(&id)
 	if err != nil {
 		app_logger.MyLogger.Error("add outbox task", zap.Error(err))
 	}
@@ -103,8 +120,15 @@ func (w *OrderOutbox) LockPending(ctx context.Context) ([]OrderOutboxTask, error
 	return tasks, nil
 }
 
-func (w *OrderOutbox) MarkTaskAsFailed(ctx context.Context, id int64) error {
-	_, err := w.Db.Exec(ctx, `
+func (w *OrderOutbox) MarkTaskAsFailed(ctx context.Context, id int64) (err error) {
+	startTime := time.Now()
+	span, _ := tracing.StartSpanFromContext(ctx, "Outbox.MarkTaskAsFailed")
+	span.SetTag("task_id", id)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
+
+	_, err = w.Db.Exec(ctx, `
     	UPDATE orders_statuses_outbox
         SET status = 'failed'
         WHERE id = $1;
@@ -126,8 +150,15 @@ func (w *OrderOutbox) DeleteTasks(ctx context.Context, ids []int64) error {
 	return nil
 }
 
-func (w *OrderOutbox) DeleteTask(ctx context.Context, id int64) error {
-	_, err := w.Db.Exec(ctx, `DELETE FROM orders_statuses_outbox WHERE id = $1;`, id)
+func (w *OrderOutbox) DeleteTask(ctx context.Context, id int64) (err error) {
+	startTime := time.Now()
+	span, _ := tracing.StartSpanFromContext(ctx, "Outbox.DeleteTask")
+	span.SetTag("task_id", id)
+	defer func() {
+		tracing.FinishSpan(span, startTime, err)
+	}()
+
+	_, err = w.Db.Exec(ctx, `DELETE FROM orders_statuses_outbox WHERE id = $1;`, id)
 
 	monitoring.ObserveOutboxTask("delete", err)
 	return err
