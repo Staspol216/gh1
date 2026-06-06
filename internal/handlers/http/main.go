@@ -14,6 +14,7 @@ import (
 	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/pkg/logger"
+	"github.com/Staspol216/gh1/pkg/monitoring"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
@@ -35,6 +36,7 @@ func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
 	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Use(metricsMiddleware)
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		_, err := w.Write([]byte("pong"))
@@ -149,6 +151,36 @@ func OrderCtx(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), ctxKeyOrderID, parsedOrderId)
 		ctx = context.WithValue(ctx, recipientIDQueryKey, parsedRecipientId)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+type responseStatusRecorder struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (r *responseStatusRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (r *responseStatusRecorder) Write(body []byte) (int, error) {
+	if r.statusCode == 0 {
+		r.statusCode = http.StatusOK
+	}
+
+	return r.ResponseWriter.Write(body)
+}
+
+func metricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+		recorder := &responseStatusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
+
+		next.ServeHTTP(recorder, r)
+
+		route := chi.RouteContext(r.Context()).RoutePattern()
+		monitoring.ObserveHTTPRequest(r.Method, route, recorder.statusCode, time.Since(startTime))
 	})
 }
 

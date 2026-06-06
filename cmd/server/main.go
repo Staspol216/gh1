@@ -21,6 +21,7 @@ import (
 	"github.com/Staspol216/gh1/internal/service/order_audit"
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/Staspol216/gh1/pkg/logger"
+	"github.com/Staspol216/gh1/pkg/monitoring"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -32,6 +33,7 @@ func main() {
 		jobsCount = 5
 	)
 	defer app_logger.MyLogger.Sync()
+	monitoring.StartMetricsServer()
 
 	cfg, err := pvz_config.Load()
 

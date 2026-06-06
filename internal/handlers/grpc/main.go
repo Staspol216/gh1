@@ -9,6 +9,7 @@ import (
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/Staspol216/gh1/pkg/logger"
+	"github.com/Staspol216/gh1/pkg/monitoring"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,7 +27,11 @@ func New(p *pvz_order_service.PvzService) *GrpcHandler {
 	}
 }
 
-func (s *GrpcHandler) GetOrders(ctx context.Context, req *orders_proto.GetOrdersRequest) (*orders_proto.GetOrdersResponse, error) {
+func (s *GrpcHandler) GetOrders(ctx context.Context, req *orders_proto.GetOrdersRequest) (resp *orders_proto.GetOrdersResponse, err error) {
+	startTime := time.Now()
+	defer func() {
+		monitoring.ObserveGRPCRequest("GetOrders", err, time.Since(startTime))
+	}()
 
 	pagination := &pvz_domain.Pagination{
 		Offset: req.GetOffset(),
@@ -41,7 +46,8 @@ func (s *GrpcHandler) GetOrders(ctx context.Context, req *orders_proto.GetOrders
 			zap.Int64("limit", req.GetLimit()),
 			zap.Error(err),
 		)
-		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
+		err = status.Errorf(codes.Internal, "Internal service error: %s", err)
+		return nil, err
 	}
 
 	return &orders_proto.GetOrdersResponse{
@@ -49,7 +55,11 @@ func (s *GrpcHandler) GetOrders(ctx context.Context, req *orders_proto.GetOrders
 	}, nil
 }
 
-func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateOrderRequest) (*orders_proto.CreateOrderResponse, error) {
+func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateOrderRequest) (resp *orders_proto.CreateOrderResponse, err error) {
+	startTime := time.Now()
+	defer func() {
+		monitoring.ObserveGRPCRequest("CreateOrder", err, time.Since(startTime))
+	}()
 
 	order := mapToDomainOrderParams(req.GetOrder())
 
@@ -61,7 +71,8 @@ func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateO
 			zap.Bool("membrana_included", req.GetMembranaIncluded()),
 			zap.Error(err),
 		)
-		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
+		err = status.Errorf(codes.Internal, "Internal service error: %s", err)
+		return nil, err
 	}
 
 	return &orders_proto.CreateOrderResponse{
@@ -69,9 +80,13 @@ func (s *GrpcHandler) CreateOrder(ctx context.Context, req *orders_proto.CreateO
 	}, nil
 }
 
-func (s *GrpcHandler) UpdateOrders(ctx context.Context, req *orders_proto.UpdateOrdersRequest) (*orders_proto.UpdateOrdersResponse, error) {
+func (s *GrpcHandler) UpdateOrders(ctx context.Context, req *orders_proto.UpdateOrdersRequest) (resp *orders_proto.UpdateOrdersResponse, err error) {
+	startTime := time.Now()
+	defer func() {
+		monitoring.ObserveGRPCRequest("UpdateOrders", err, time.Since(startTime))
+	}()
 
-	err := s.service.ServeRecipient(ctx, req.GetOrderIds(), req.GetRecipientId(), req.GetAction())
+	err = s.service.ServeRecipient(ctx, req.GetOrderIds(), req.GetRecipientId(), req.GetAction())
 
 	if err != nil {
 		app_logger.MyLogger.Error("gRPC UpdateOrders failed",
@@ -80,22 +95,28 @@ func (s *GrpcHandler) UpdateOrders(ctx context.Context, req *orders_proto.Update
 			zap.String("action", req.GetAction()),
 			zap.Error(err),
 		)
-		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
+		err = status.Errorf(codes.Internal, "Internal service error: %s", err)
+		return nil, err
 	}
 
 	return &orders_proto.UpdateOrdersResponse{}, nil
 }
 
-func (s *GrpcHandler) DeleteOrder(ctx context.Context, req *orders_proto.DeleteOrderRequest) (*orders_proto.DeleteOrderResponse, error) {
+func (s *GrpcHandler) DeleteOrder(ctx context.Context, req *orders_proto.DeleteOrderRequest) (resp *orders_proto.DeleteOrderResponse, err error) {
+	startTime := time.Now()
+	defer func() {
+		monitoring.ObserveGRPCRequest("DeleteOrder", err, time.Since(startTime))
+	}()
 
-	err := s.service.ReturnToCourier(ctx, req.GetOrderId())
+	err = s.service.ReturnToCourier(ctx, req.GetOrderId())
 
 	if err != nil {
 		app_logger.MyLogger.Error("gRPC DeleteOrder failed",
 			zap.Int64("order_id", req.GetOrderId()),
 			zap.Error(err),
 		)
-		return nil, status.Errorf(codes.Internal, "Internal service error: %s", err)
+		err = status.Errorf(codes.Internal, "Internal service error: %s", err)
+		return nil, err
 	}
 
 	return &orders_proto.DeleteOrderResponse{}, nil

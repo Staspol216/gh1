@@ -7,6 +7,7 @@ import (
 
 	"github.com/Staspol216/gh1/internal/ports"
 	"github.com/Staspol216/gh1/pkg/logger"
+	"github.com/Staspol216/gh1/pkg/monitoring"
 	"github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 )
@@ -31,13 +32,16 @@ func (w *OrderOutbox) Run(ctx context.Context, interval time.Duration) {
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					app_logger.MyLogger.Info("there are no tasks for sending to broker")
+					monitoring.ObserveOutboxBatch("empty", 0)
 					return
 				}
 
 				app_logger.MyLogger.Error("failed to fetch outbox tasks", zap.Error(err))
+				monitoring.ObserveOutboxBatch("error", 0)
 				return
 			}
 
+			monitoring.ObserveOutboxBatch("success", len(tasks))
 			w.Tasks <- tasks
 		}
 	}
@@ -66,6 +70,7 @@ func (w *OrderOutbox) AddTask(ctx context.Context, task *OrderOutboxTask) (int64
 	if err != nil {
 		app_logger.MyLogger.Error("add outbox task", zap.Error(err))
 	}
+	monitoring.ObserveOutboxTask("add", err)
 	return id, err
 }
 
@@ -105,6 +110,7 @@ func (w *OrderOutbox) MarkTaskAsFailed(ctx context.Context, id int64) error {
         WHERE id = $1;
     `, id)
 
+	monitoring.ObserveOutboxTask("mark_failed", err)
 	return err
 }
 
@@ -123,5 +129,6 @@ func (w *OrderOutbox) DeleteTasks(ctx context.Context, ids []int64) error {
 func (w *OrderOutbox) DeleteTask(ctx context.Context, id int64) error {
 	_, err := w.Db.Exec(ctx, `DELETE FROM orders_statuses_outbox WHERE id = $1;`, id)
 
+	monitoring.ObserveOutboxTask("delete", err)
 	return err
 }

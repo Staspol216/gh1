@@ -11,6 +11,8 @@ import (
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/ports"
 	"github.com/Staspol216/gh1/pkg/logger"
+	"github.com/Staspol216/gh1/pkg/monitoring"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -35,14 +37,28 @@ func NewPvzService(
 	}
 }
 
-func (s *PvzService) GetOrders(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
+func (s *PvzService) GetOrders(ctx context.Context, pagination *pvz_domain.Pagination) (orders []*pvz_domain.Order, err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("get_orders", err)
+	}()
+
 	return s.storage.GetList(ctx, pagination)
 }
 
-func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64, recipientId int64) (*pvz_domain.Order, error) {
+func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64, recipientId int64) (result *pvz_domain.Order, err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("get_order_by_id", err)
+	}()
+
 	order, err := s.cache.GetOrder(ctx, orderId)
 	if err == nil {
+		monitoring.ObserveCacheOperation("get_order_hit", nil)
 		return order, nil
+	}
+	if errors.Is(err, redis.Nil) {
+		monitoring.ObserveCacheOperation("get_order_miss", nil)
+	} else {
+		monitoring.ObserveCacheOperation("get_order_error", err)
 	}
 
 	order, err = s.storage.GetRecipientOrderByID(ctx, orderId, recipientId)
@@ -55,13 +71,20 @@ func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64, recipientI
 			zap.Int64("order_id", order.ID),
 			zap.Error(cacheErr),
 		)
+		monitoring.ObserveCacheOperation("set_order", cacheErr)
+	} else {
+		monitoring.ObserveCacheOperation("set_order", nil)
 	}
 
 	return order, nil
 }
 
-func (s *PvzService) GetOrdersByIDs(ctx context.Context, ordersIds []int64) ([]*pvz_domain.Order, error) {
-	orders, err := s.storage.GetByIDs(ctx, ordersIds)
+func (s *PvzService) GetOrdersByIDs(ctx context.Context, ordersIds []int64) (orders []*pvz_domain.Order, err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("get_orders_by_ids", err)
+	}()
+
+	orders, err = s.storage.GetByIDs(ctx, ordersIds)
 
 	if err != nil {
 		return nil, err
@@ -70,7 +93,10 @@ func (s *PvzService) GetOrdersByIDs(ctx context.Context, ordersIds []int64) ([]*
 	return orders, nil
 }
 
-func (s *PvzService) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (*int64, error) {
+func (s *PvzService) AcceptFromCourier(ctx context.Context, payload *pvz_domain.OrderParams, packagingType string, additionalMembrana bool) (orderID *int64, err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("accept_from_courier", err)
+	}()
 
 	var order *pvz_domain.Order
 
@@ -90,8 +116,10 @@ func (s *PvzService) AcceptFromCourier(ctx context.Context, payload *pvz_domain.
 	}
 
 	if err := s.cache.SetOrder(ctx, order, 0); err != nil {
+		monitoring.ObserveCacheOperation("set_order", err)
 		return nil, err
 	}
+	monitoring.ObserveCacheOperation("set_order", nil)
 
 	return &order.ID, txError
 }
@@ -135,7 +163,10 @@ func (s *PvzService) ProcessOrderReceive(ctxTx context.Context, payload *pvz_dom
 	return result, nil
 }
 
-func (s *PvzService) ReturnToCourier(ctx context.Context, orderId int64) error {
+func (s *PvzService) ReturnToCourier(ctx context.Context, orderId int64) (err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("return_to_courier", err)
+	}()
 
 	txError := s.txManager.RunRepeatableRead(func(ctxTx context.Context) error {
 		order, err := s.storage.GetByID(ctxTx, orderId)
@@ -157,14 +188,19 @@ func (s *PvzService) ReturnToCourier(ctx context.Context, orderId int64) error {
 
 	if txError == nil {
 		if err := s.cache.DeleteOrder(ctx, orderId); err != nil {
+			monitoring.ObserveCacheOperation("delete_order", err)
 			return err
 		}
+		monitoring.ObserveCacheOperation("delete_order", nil)
 	}
 
 	return txError
 }
 
-func (s *PvzService) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId int64, action string) error {
+func (s *PvzService) ServeRecipient(ctx context.Context, ordersIds []int64, recipientId int64, action string) (err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("serve_recipient", err)
+	}()
 
 	switch action {
 	case Deliver.String():
@@ -184,7 +220,10 @@ func (s *PvzService) ServeRecipient(ctx context.Context, ordersIds []int64, reci
 	return nil
 }
 
-func (s *PvzService) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
+func (s *PvzService) RefundOrders(ctx context.Context, ordersIds []int64, recipientId int64) (err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("refund_orders", err)
+	}()
 
 	for _, orderId := range ordersIds {
 
@@ -207,8 +246,10 @@ func (s *PvzService) RefundOrders(ctx context.Context, ordersIds []int64, recipi
 		}
 
 		if err := s.cache.SetOrder(ctx, updatedOrder, 0); err != nil {
+			monitoring.ObserveCacheOperation("set_order", err)
 			return err
 		}
+		monitoring.ObserveCacheOperation("set_order", nil)
 	}
 
 	return nil
@@ -250,7 +291,10 @@ func (s *PvzService) ProcessOrderRefund(ctx context.Context, orderId int64, reci
 	return order, nil
 }
 
-func (s *PvzService) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) error {
+func (s *PvzService) DeliverOrders(ctx context.Context, ordersIds []int64, recipientId int64) (err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("deliver_orders", err)
+	}()
 
 	for _, orderId := range ordersIds {
 
@@ -273,8 +317,10 @@ func (s *PvzService) DeliverOrders(ctx context.Context, ordersIds []int64, recip
 		}
 
 		if err := s.cache.SetOrder(ctx, updatedOrder, 0); err != nil {
+			monitoring.ObserveCacheOperation("set_order", err)
 			return err
 		}
+		monitoring.ObserveCacheOperation("set_order", nil)
 	}
 
 	return nil
@@ -346,7 +392,10 @@ func (s *PvzService) ProcessOrderDeliver(ctxTx context.Context, orderId int64, r
 	return order, nil
 }
 
-func (s *PvzService) GetAllRefunds(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
+func (s *PvzService) GetAllRefunds(ctx context.Context, pagination *pvz_domain.Pagination) (result []*pvz_domain.Order, err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("get_all_refunds", err)
+	}()
 
 	orders, err := s.storage.GetList(ctx, pagination)
 	if err != nil {
@@ -364,7 +413,10 @@ func (s *PvzService) GetAllRefunds(ctx context.Context, pagination *pvz_domain.P
 	return refundedOrders, nil
 }
 
-func (s *PvzService) GetHistory(ctx context.Context, pagination *pvz_domain.Pagination) ([]*pvz_domain.Order, error) {
+func (s *PvzService) GetHistory(ctx context.Context, pagination *pvz_domain.Pagination) (result []*pvz_domain.Order, err error) {
+	defer func() {
+		monitoring.ObserveOrderOperation("get_history", err)
+	}()
 
 	orders, err := s.storage.GetList(ctx, pagination)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/pkg/logger"
+	"github.com/Staspol216/gh1/pkg/monitoring"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -52,8 +53,10 @@ func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error
 		bytes, err := json.Marshal(task)
 		if err != nil {
 			app_logger.MyLogger.Error("failed to marshal JSON for task", zap.Int64("task_id", task.ID), zap.Error(err))
+			monitoring.ObserveKafkaMessage("marshal", err)
 			continue
 		}
+		monitoring.ObserveKafkaMessage("marshal", nil)
 
 		msg := &sarama.ProducerMessage{
 			Topic: "order_audit_logs",
@@ -65,11 +68,13 @@ func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error
 
 		if err != nil {
 			app_logger.MyLogger.Error("failed to send message to Kafka", zap.Int64("task_id", task.ID), zap.Error(err))
+			monitoring.ObserveKafkaMessage("produce", err)
 			if ferr := w.Outbox.MarkTaskAsFailed(w.Context, task.ID); ferr != nil {
 				app_logger.MyLogger.Error("failed to mark task as failed", zap.Int64("task_id", task.ID), zap.Error(ferr))
 			}
 			continue
 		}
+		monitoring.ObserveKafkaMessage("produce", nil)
 
 		if ferr := w.Outbox.DeleteTask(w.Context, task.ID); ferr != nil {
 			app_logger.MyLogger.Error("failed to delete task after successful send",
@@ -80,6 +85,7 @@ func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error
 			)
 			continue
 		}
+		monitoring.ObserveKafkaMessage("ack", nil)
 	}
 
 	return nil
