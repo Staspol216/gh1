@@ -3,11 +3,12 @@ package order_outbox
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/Staspol216/gh1/internal/ports"
+	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/jackc/pgx/v4"
+	"go.uber.org/zap"
 )
 
 type OrderOutbox struct {
@@ -22,18 +23,18 @@ func (w *OrderOutbox) Run(ctx context.Context, interval time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Outbox worker finished by context done")
+			app_logger.MyLogger.Info("outbox worker finished by context done")
 			return
 		case <-ticker.C:
 			tasks, err := w.LockPending(ctx)
 
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
-					log.Printf("There are no tasks for sending to broker")
+					app_logger.MyLogger.Info("there are no tasks for sending to broker")
 					return
 				}
 
-				log.Printf("failed to fetch tasks: %v", err)
+				app_logger.MyLogger.Error("failed to fetch outbox tasks", zap.Error(err))
 				return
 			}
 
@@ -63,7 +64,7 @@ func (w *OrderOutbox) AddTask(ctx context.Context, task *OrderOutboxTask) (int64
 	var id int64
 	err := row.Scan(&id)
 	if err != nil {
-		log.Println(err)
+		app_logger.MyLogger.Error("add outbox task", zap.Error(err))
 	}
 	return id, err
 }

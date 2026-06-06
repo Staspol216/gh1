@@ -3,13 +3,13 @@ package order_audit
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
 
 	"github.com/IBM/sarama"
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/service/order"
+	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type OrderAuditLogProducer struct {
@@ -25,20 +25,20 @@ func (w *OrderAuditLogProducer) Run() {
 		select {
 		case tasksBatch, ok := <-w.Tasks:
 			if !ok {
-				log.Println("Tasks channel closed, exiting writer")
+				app_logger.MyLogger.Info("tasks channel closed, exiting writer")
 				return
 			}
 
 			err := w.work(tasksBatch)
 
 			if err != nil {
-				log.Println(fmt.Errorf("w.work: %w", err))
+				app_logger.MyLogger.Error("order audit producer work failed", zap.Error(err))
 			}
 
-			fmt.Println("Worker process jobs")
+			app_logger.MyLogger.Info("worker processed jobs", zap.Int("tasks_count", len(tasksBatch)))
 			continue
 		case <-w.Context.Done():
-			log.Printf("Writer was finished by context done")
+			app_logger.MyLogger.Info("writer was finished by context done")
 			return
 		}
 	}
@@ -51,7 +51,7 @@ func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error
 		requestID := uuid.New().String()
 		bytes, err := json.Marshal(task)
 		if err != nil {
-			log.Printf("Failed to marshal JSON for task %d: %v", task.ID, err)
+			app_logger.MyLogger.Error("failed to marshal JSON for task", zap.Int64("task_id", task.ID), zap.Error(err))
 			continue
 		}
 
@@ -64,15 +64,20 @@ func (w *OrderAuditLogProducer) work(tasks []order_outbox.OrderOutboxTask) error
 		partition, offset, err := w.Producer.SendMessage(msg)
 
 		if err != nil {
-			log.Printf("Failed to send message to Kafka for task %d: %v", task.ID, err)
+			app_logger.MyLogger.Error("failed to send message to Kafka", zap.Int64("task_id", task.ID), zap.Error(err))
 			if ferr := w.Outbox.MarkTaskAsFailed(w.Context, task.ID); ferr != nil {
-				log.Printf("MarkTaskAsFailed for task %d: %v", task.ID, ferr)
+				app_logger.MyLogger.Error("failed to mark task as failed", zap.Int64("task_id", task.ID), zap.Error(ferr))
 			}
 			continue
 		}
 
 		if ferr := w.Outbox.DeleteTask(w.Context, task.ID); ferr != nil {
-			log.Printf("Failed to delete task %d after successful send (partition: %d, offset: %d): %v", task.ID, partition, offset, ferr)
+			app_logger.MyLogger.Error("failed to delete task after successful send",
+				zap.Int64("task_id", task.ID),
+				zap.Int32("partition", partition),
+				zap.Int64("offset", offset),
+				zap.Error(ferr),
+			)
 			continue
 		}
 	}

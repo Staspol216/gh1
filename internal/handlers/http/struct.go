@@ -4,8 +4,10 @@ import (
 	"errors"
 	"net/http"
 
-	pvz_domain "github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/internal/domain/order"
+	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/go-chi/render"
+	"go.uber.org/zap"
 )
 
 type OrderRequestMetadata struct {
@@ -26,6 +28,15 @@ type ErrResponse struct {
 
 func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
+	if e.HTTPStatusCode >= http.StatusInternalServerError {
+		app_logger.MyLogger.Error("HTTP response error",
+			zap.Int("status", e.HTTPStatusCode),
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+			zap.String("remote", r.RemoteAddr),
+			zap.Error(e.Err),
+		)
+	}
 	return nil
 }
 

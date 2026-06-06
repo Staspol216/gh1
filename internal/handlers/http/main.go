@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,9 +13,11 @@ import (
 	"github.com/Staspol216/gh1/internal/config"
 	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/service/order"
+	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	"go.uber.org/zap"
 )
 
 type HTTPHandler struct {
@@ -45,16 +46,16 @@ func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 	r.Route("/orders", func(r chi.Router) {
 		r.With(paginate).Get("/", h.ListOrders)
 
-		r.With(logger).Post("/", h.CreateOrder)
+		r.With(requestLogger).Post("/", h.CreateOrder)
 
-		r.With(logger).Patch("/", h.UpdateOrders)
+		r.With(requestLogger).Patch("/", h.UpdateOrders)
 
 		r.Route("/{orderID}", func(r chi.Router) {
 			r.Use(OrderCtx)
 
-			r.With(logger).Get("/", h.GetOrder)
+			r.With(requestLogger).Get("/", h.GetOrder)
 
-			r.With(logger).Delete("/", h.DeleteOrder)
+			r.With(requestLogger).Delete("/", h.DeleteOrder)
 		})
 
 		r.Route("/refunds", func(r chi.Router) {
@@ -71,26 +72,26 @@ func (h *HTTPHandler) Serve(cfg *pvz_config.Config) error {
 		Handler: r,
 	}
 
-	log.Println("HTTP server starting on", cfg.HTTPAddr())
+	app_logger.MyLogger.Info("HTTP server starting", zap.String("address", cfg.HTTPAddr()))
 
 	// Start server in goroutine so we can listen for shutdown signal
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("HTTP server error: %v", err)
+			app_logger.MyLogger.Error("HTTP server error", zap.Error(err))
 		}
 	}()
 
 	// Wait for shutdown signal
 	<-h.context.Done()
 
-	log.Println("Shutdown signal received, gracefully shutting down HTTP server...")
+	app_logger.MyLogger.Info("shutdown signal received, gracefully shutting down HTTP server")
 
 	// Graceful shutdown with 5 second timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+		app_logger.MyLogger.Error("HTTP server shutdown error", zap.Error(err))
 	}
 
 	return nil
@@ -151,7 +152,7 @@ func OrderCtx(next http.Handler) http.Handler {
 	})
 }
 
-func logger(next http.Handler) http.Handler {
+func requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 
@@ -163,18 +164,26 @@ func logger(next http.Handler) http.Handler {
 		}(r.Body)
 
 		if err != nil {
-			log.Println(err.Error())
+			app_logger.MyLogger.Error("read request body", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
-		log.Printf("Remote: %s %s", r.RemoteAddr, r.UserAgent())
-		log.Printf("Request: %s %s %s", r.Method, r.URL.Path, r.Proto)
+		fields := []zap.Field{
+			zap.String("remote", r.RemoteAddr),
+			zap.String("user_agent", r.UserAgent()),
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+			zap.String("proto", r.Proto),
+		}
 
 		if len(body) > 0 {
-			log.Printf("Body: %s", string(body))
+			fields = append(fields, zap.ByteString("body", body))
 		}
+
+		app_logger.MyLogger.Info("HTTP request", fields...)
 
 		next.ServeHTTP(w, r)
 	})
@@ -356,6 +365,7 @@ func (h *HTTPHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		if eErr := render.Render(w, r, ErrInternal(err)); eErr != nil {
 			return
 		}
+		return
 	}
 
 	renderError := render.Render(w, r, NewOrderIDResponse(*orderId))
@@ -372,6 +382,7 @@ func (h *HTTPHandler) UpdateOrders(w http.ResponseWriter, r *http.Request) {
 		if eErr := render.Render(w, r, ErrInvalidRequest(err)); eErr != nil {
 			return
 		}
+		return
 	}
 
 	err := h.pvz.ServeRecipient(r.Context(), data.OrderIDs, data.RecipientID, data.Action)
@@ -379,6 +390,7 @@ func (h *HTTPHandler) UpdateOrders(w http.ResponseWriter, r *http.Request) {
 		if rErr := render.Render(w, r, ErrInternal(err)); rErr != nil {
 			return
 		}
+		return
 	}
 
 	renderErr := render.Render(w, r, NewOrderUpdateResponse())
@@ -406,6 +418,7 @@ func (h *HTTPHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
+		return
 	}
 
 	renderErr := render.Render(w, r, NewOrderDeletedResponse())

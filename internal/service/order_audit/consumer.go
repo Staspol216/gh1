@@ -3,12 +3,11 @@ package order_audit
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
 
 	"github.com/IBM/sarama"
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/Staspol216/gh1/pkg/logger"
+	"go.uber.org/zap"
 )
 
 type OrderAuditLogPartitionConsumer struct {
@@ -22,28 +21,32 @@ func (c *OrderAuditLogPartitionConsumer) Run() {
 		// Чтение сообщения из Kafka
 		case msg, ok := <-c.Partition.Messages():
 			if !ok {
-				log.Println("Channel closed, exiting goroutine")
+				app_logger.MyLogger.Info("channel closed, exiting goroutine")
 				return
 			}
 			c.log(msg)
 		case err, ok := <-c.Partition.Errors():
 			if ok {
-				log.Printf("Kafka consumer error: %v", err)
+				app_logger.MyLogger.Error("kafka consumer error", zap.Error(err))
 			}
 		case <-c.Context.Done():
-			log.Printf("Reader finished by context done")
+			app_logger.MyLogger.Info("reader finished by context done")
 			return
 		}
 	}
 }
 
 func (c *OrderAuditLogPartitionConsumer) log(job *sarama.ConsumerMessage) {
-	fmt.Println("----------- AUDIT LOG RECORD -----------")
 	var task order_outbox.OrderOutboxTask
 	if err := json.Unmarshal(job.Value, &task); err != nil {
-		fmt.Printf("Failed to unmarshal order_audit log: %v\n", err)
+		app_logger.MyLogger.Error("failed to unmarshal order audit log", zap.Error(err))
 	} else {
-		spew.Dump(task)
+		app_logger.MyLogger.Info("audit log record",
+			zap.Int64("task_id", task.ID),
+			zap.String("status", task.Status),
+			zap.String("order_status", string(task.OrderStatus)),
+			zap.String("description", task.Description),
+			zap.Time("timestamp", task.Timestamp),
+		)
 	}
-	fmt.Println("----------------------------------------")
 }

@@ -2,10 +2,13 @@ package tx_manager
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Staspol216/gh1/internal/ports"
+	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"go.uber.org/zap"
 )
 
 type txManagerKey struct{}
@@ -52,7 +55,9 @@ func (m *TxManager) beginFunc(opts pgx.TxOptions, fn func(ctxTx context.Context)
 	}
 
 	defer func() {
-		_ = tx.Rollback(m.context)
+		if rollbackErr := tx.Rollback(m.context); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			app_logger.MyLogger.Error("transaction rollback failed", zap.Error(rollbackErr))
+		}
 	}()
 
 	ctxTx := context.WithValue(m.context, txKey, tx)

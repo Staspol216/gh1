@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/ports"
+	"github.com/Staspol216/gh1/pkg/logger"
+	"go.uber.org/zap"
 )
 
 type OrderRepo struct {
@@ -42,7 +43,7 @@ func (r *OrderRepo) Add(ctx context.Context, order *pvz_domain.Order) (int64, er
 	var id int64
 	err := row.Scan(&id)
 	if err != nil {
-		log.Println(err)
+		app_logger.MyLogger.Error("add order", zap.Error(err))
 	}
 	return id, err
 }
@@ -67,7 +68,7 @@ func (r *OrderRepo) AddHistoryRecord(ctx context.Context, record *pvz_domain.Ord
 	var id int64
 	err := row.Scan(&id)
 	if err != nil {
-		log.Println(err)
+		app_logger.MyLogger.Error("add order history record", zap.Error(err))
 	}
 	return id, err
 }
@@ -273,7 +274,8 @@ func (r *OrderRepo) SeedOrders(ctx context.Context) {
 		).Scan(&orderID)
 
 		if err != nil {
-			log.Fatal("insert order: %w", err)
+			app_logger.MyLogger.Error("insert seed order", zap.Error(err))
+			return
 		}
 
 		for _, rec := range history {
@@ -287,10 +289,11 @@ func (r *OrderRepo) SeedOrders(ctx context.Context) {
 			)
 
 			if err != nil {
-				log.Fatal("insert record: %w", err)
+				app_logger.MyLogger.Error("insert seed order record", zap.Error(err))
+				return
 			}
 		}
 	}
 
-	log.Println("Orders seeded successfully")
+	app_logger.MyLogger.Info("orders seeded successfully")
 }

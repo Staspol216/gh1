@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os/signal"
 	"sync"
@@ -21,8 +20,10 @@ import (
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/internal/service/order_audit"
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
+	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -30,11 +31,12 @@ func main() {
 	const (
 		jobsCount = 5
 	)
+	defer app_logger.MyLogger.Sync()
 
 	cfg, err := pvz_config.Load()
 
 	if err != nil {
-		log.Fatalf("Load config error: %v", err)
+		app_logger.MyLogger.Fatal("load config error", zap.Error(err))
 	}
 
 	wg := &sync.WaitGroup{}
@@ -46,7 +48,7 @@ func main() {
 
 	pool, err := pgxpool.Connect(ctx, cfg.DBConnString())
 	if err != nil {
-		log.Fatal(err)
+		app_logger.MyLogger.Fatal("connect to postgres", zap.Error(err))
 	}
 
 	rdb := redis.NewClient(&redis.Options{
@@ -59,7 +61,7 @@ func main() {
 	orderCache := order.NewOrderCache(rdb)
 
 	if redisPingErr := orderCache.Healthcheck(sigCtx); redisPingErr != nil {
-		log.Fatal(redisPingErr)
+		app_logger.MyLogger.Fatal("redis healthcheck failed", zap.Error(redisPingErr))
 	}
 
 	database := db.NewDatabase(txManager)
@@ -78,7 +80,7 @@ func main() {
 
 	producer, err := sarama.NewSyncProducer([]string{cfg.KafkaAddr()}, nil)
 	if err != nil {
-		log.Fatalf("Failed to create producer: %v", err)
+		app_logger.MyLogger.Fatal("create kafka producer", zap.Error(err))
 	}
 	defer producer.Close()
 
@@ -91,13 +93,13 @@ func main() {
 
 	consumer, err := sarama.NewConsumer([]string{cfg.KafkaAddr()}, nil)
 	if err != nil {
-		log.Fatalf("Failed to create consumer: %v", err)
+		app_logger.MyLogger.Fatal("create kafka consumer", zap.Error(err))
 	}
 	defer consumer.Close()
 
 	partConsumer, err := consumer.ConsumePartition("order_audit_logs", 0, sarama.OffsetNewest)
 	if err != nil {
-		log.Fatalf("Failed to consume partition: %v", err)
+		app_logger.MyLogger.Fatal("consume kafka partition", zap.Error(err))
 	}
 	defer partConsumer.Close()
 
@@ -117,7 +119,7 @@ func main() {
 	orderRepo, err := order.NewOrderRepo(database)
 
 	if err != nil {
-		log.Fatal("pvz.New: %w", err)
+		app_logger.MyLogger.Fatal("create order repository", zap.Error(err))
 	}
 
 	pvzService := pvz_order_service.NewPvzService(orderRepo, orderOutbox, orderCache, txManager)
@@ -127,7 +129,7 @@ func main() {
 	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.BackendGRPCPort))
 
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		app_logger.MyLogger.Fatal("listen tcp", zap.Error(err), zap.Int("port", cfg.BackendGRPCPort))
 	}
 
 	grpcServer := grpc.NewServer()
@@ -136,27 +138,27 @@ func main() {
 
 	orders_proto.RegisterOrdersServiceServer(grpcServer, grcpHandler)
 
-	log.Printf("gRPC Server listening at %v", tcpListener.Addr())
+	app_logger.MyLogger.Info("gRPC server listening", zap.String("address", tcpListener.Addr().String()))
 
 	wg.Go(func() {
 		if err := grpcServer.Serve(tcpListener); err != nil {
-			log.Printf("gRPC server error: %v", err)
+			app_logger.MyLogger.Error("gRPC server error", zap.Error(err))
 		}
 	})
 
 	wg.Go(func() {
 		if err := httpHandler.Serve(cfg); err != nil {
-			log.Printf("HTTP server error: %v", err)
+			app_logger.MyLogger.Error("HTTP server error", zap.Error(err))
 		}
 	})
 
 	<-sigCtx.Done()
 
-	log.Println("Shutdown signal received, gracefully shutting down GRPC server...")
+	app_logger.MyLogger.Info("shutdown signal received, gracefully shutting down gRPC server")
 
 	grpcServer.GracefulStop()
 
 	wg.Wait()
 
-	fmt.Println("✓ All servers shut down successfully")
+	app_logger.MyLogger.Info("all servers shut down successfully")
 }

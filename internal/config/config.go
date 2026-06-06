@@ -5,9 +5,10 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -53,7 +54,21 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	spew.Dump(cfg)
+	app_logger.MyLogger.Info("config loaded",
+		zap.String("app_name", cfg.AppName),
+		zap.String("env", cfg.Env),
+		zap.String("log_level", cfg.LogLevel),
+		zap.String("backend_host", cfg.BackendHost),
+		zap.Int("backend_http_port", cfg.BackendHTTPPort),
+		zap.Int("backend_grpc_port", cfg.BackendGRPCPort),
+		zap.String("db_host", cfg.DBHost),
+		zap.Int("db_port", cfg.DBPort),
+		zap.String("db_name", cfg.DBName),
+		zap.String("redis_host", cfg.RedisHost),
+		zap.Int("redis_port", cfg.RedisPort),
+		zap.String("kafka_host", cfg.KafkaHost),
+		zap.Int("kafka_port", cfg.KafkaPort),
+	)
 
 	return &cfg, nil
 }
@@ -73,8 +88,6 @@ func (c *Config) DBConnString() string {
 	q := u.Query()
 	q.Set("sslmode", c.DBSSLMode)
 	u.RawQuery = q.Encode()
-
-	spew.Dump(u.String())
 
 	return u.String()
 }

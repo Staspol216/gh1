@@ -10,6 +10,8 @@ import (
 	"github.com/Staspol216/gh1/internal/domain/order"
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/ports"
+	"github.com/Staspol216/gh1/pkg/logger"
+	"go.uber.org/zap"
 )
 
 type PvzService struct {
@@ -48,7 +50,12 @@ func (s *PvzService) GetOrderByID(ctx context.Context, orderId int64, recipientI
 		return nil, err
 	}
 
-	_ = s.cache.SetOrder(ctx, order, 0)
+	if cacheErr := s.cache.SetOrder(ctx, order, 0); cacheErr != nil {
+		app_logger.MyLogger.Warn("failed to cache order after storage lookup",
+			zap.Int64("order_id", order.ID),
+			zap.Error(cacheErr),
+		)
+	}
 
 	return order, nil
 }

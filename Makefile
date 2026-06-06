@@ -20,7 +20,7 @@ DB_SSLMODE ?= disable
 
 GOOSE_DBSTRING ?= user=$(DB_USER) password=$(DB_PASSWORD) dbname=$(DB_NAME) host=$(DB_HOST) port=$(DB_PORT) sslmode=$(DB_SSLMODE)
 
-MIGRATIONS_DIR=$(CURDIR)/internal/infrastructure/migrations
+MIGRATIONS_DIR=$(CURDIR)/internal/infra/migrations
 
 .PHONY: migration-create
 migration-create:
@@ -48,6 +48,10 @@ test:
 	$(info running tests...)
 	go test ./...
 
+.PHONY: seed
+seed:
+	$(info seeding database...)
+	go run ./cmd/seed/main.go
 
 .PHONY: help
 help: 
