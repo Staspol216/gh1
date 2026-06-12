@@ -1,0 +1,452 @@
+swagger: "2.0"
+info:
+  title: Orders API
+  version: 1.0.0
+tags:
+  - name: OrdersService
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /ping:
+    get:
+      summary: Health check
+      operationId: GetPing
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+            format: string
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      tags:
+        - health
+      produces:
+        - text/plain
+  /orders:
+    get:
+      summary: Retrieve a list of Orders
+      operationId: GetOrders
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/GetOrdersResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ApiError'
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int64
+          default: "10"
+        - name: offset
+          in: query
+          required: false
+          type: string
+          format: int64
+          default: "0"
+      tags:
+        - order
+    post:
+      summary: Accept an order from courier
+      operationId: CreateOrder
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/OrderIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ApiError'
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/OrderCreateRequest'
+      tags:
+        - order
+    patch:
+      summary: Deliver or refund orders for recipient
+      operationId: UpdateOrders
+      responses:
+        "204":
+          description: Order operation completed successfully
+          schema: {}
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ApiError'
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/OrderUpdateRequest'
+      tags:
+        - order
+  /orders/{orderID}:
+    get:
+      summary: Retrieve order by ID for recipient
+      operationId: GetOrder
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ApiError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ApiError'
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      parameters:
+        - name: orderID
+          in: path
+          required: true
+          type: string
+          format: int64
+        - name: recipientID
+          in: query
+          required: true
+          type: integer
+          format: int64
+      tags:
+        - order
+    delete:
+      summary: Return order to courier
+      operationId: DeleteOrder
+      responses:
+        "204":
+          description: Order operation completed successfully
+          schema: {}
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ApiError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ApiError'
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      parameters:
+        - name: orderID
+          in: path
+          required: true
+          type: string
+          format: int64
+      tags:
+        - order
+  /orders/refunds:
+    get:
+      summary: Retrieve refunded orders
+      operationId: GetRefundedOrders
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/GetOrdersResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ApiError'
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int64
+          default: "10"
+        - name: offset
+          in: query
+          required: false
+          type: string
+          format: int64
+          default: "0"
+      tags:
+        - order
+  /orders-history:
+    get:
+      summary: Retrieve orders history
+      operationId: GetOrdersHistory
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/GetOrdersResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ApiError'
+        default:
+          description: General error response
+          schema:
+            $ref: '#/definitions/ApiError'
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int64
+          default: "10"
+        - name: offset
+          in: query
+          required: false
+          type: string
+          format: int64
+          default: "0"
+      tags:
+        - order
+definitions:
+  ApiError:
+    type: object
+    properties:
+      error:
+        $ref: '#/definitions/BaseError'
+    description: Описание ошибки
+    required:
+      - error
+  ApiErrorCode:
+    type: string
+    enum:
+      - bad_request
+      - unauthorized
+      - forbidden
+      - not_found
+      - method_not_allowed
+      - not_acceptable
+      - request_timeout
+      - state_conflict
+      - not_implemented
+      - request_cancelled
+      - internal
+    default: bad_request
+  ApiErrorParams:
+    type: object
+    properties:
+      validations:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/ValidationInfo'
+        description: Информации о валидации полей
+      additional_info:
+        type: array
+        items:
+          type: string
+        description: Дополнительная информация о ошибке
+    description: Параметры ошибки
+  BaseError:
+    type: object
+    properties:
+      code:
+        $ref: '#/definitions/ApiErrorCode'
+      message:
+        type: string
+        description: Описание ошибки
+      params:
+        $ref: '#/definitions/ApiErrorParams'
+    required:
+      - code
+      - message
+  DeleteOrderResponse:
+    type: object
+  GetOrdersResponse:
+    type: object
+    properties:
+      orders:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/Order'
+    required:
+      - orders
+  GetPingResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  Order:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      recipient_id:
+        type: integer
+        format: int64
+      expiration_date:
+        type: string
+        format: date-time
+      delivered_date:
+        type: string
+        format: date-time
+      refunded_date:
+        type: string
+        format: date-time
+      status:
+        $ref: '#/definitions/OrderStatus'
+      history:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/OrderRecord'
+      weight:
+        type: number
+        format: double
+      worth:
+        type: number
+        format: double
+      returned_date:
+        type: string
+        format: date-time
+    required:
+      - id
+      - recipient_id
+      - expiration_date
+      - history
+      - status
+      - weight
+      - worth
+  OrderCreateRequest:
+    type: object
+    properties:
+      order:
+        $ref: '#/definitions/OrderParams'
+      packagingType:
+        $ref: '#/definitions/PackagingType'
+      membranaIncluded:
+        type: boolean
+    required:
+      - order
+      - packagingType
+      - membranaIncluded
+  OrderIDResponse:
+    type: object
+    properties:
+      order_id:
+        type: integer
+        format: int64
+    required:
+      - order_id
+  OrderParams:
+    type: object
+    properties:
+      recipient_id:
+        type: integer
+        format: int64
+      expiration_date:
+        type: string
+        format: date-time
+      weight:
+        type: number
+        format: double
+      worth:
+        type: number
+        format: double
+    required:
+      - recipient_id
+      - expiration_date
+      - weight
+      - worth
+  OrderRecord:
+    type: object
+    properties:
+      timestamp:
+        type: string
+        format: date-time
+      status:
+        $ref: '#/definitions/OrderStatus'
+      description:
+        type: string
+    required:
+      - status
+      - description
+      - timestamp
+  OrderStatus:
+    type: string
+    enum:
+      - received
+      - returned
+      - delivered
+      - refunded
+      - storage_ended
+      - none
+    default: received
+  OrderUpdateAction:
+    type: string
+    enum:
+      - deliver
+      - refund
+    default: deliver
+  OrderUpdateRequest:
+    type: object
+    properties:
+      order_ids:
+        type: integer
+        items:
+          type: string
+          format: int64
+      recipient_id:
+        type: integer
+        format: int64
+      action:
+        $ref: '#/definitions/OrderUpdateAction'
+    required:
+      - order_ids
+      - recipient_id
+      - action
+  PackagingType:
+    type: string
+    enum:
+      - box
+      - bag
+      - membrana
+    default: box
+  UpdateOrdersResponse:
+    type: object
+  ValidationInfo:
+    type: object
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+    description: Информация о валидации поля
+    required:
+      - field
+      - message

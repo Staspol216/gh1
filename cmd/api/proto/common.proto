@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package common.proto;
+
+option go_package = "common.proto";
+
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+enum ApiErrorCode {
+  bad_request = 0;
+  unauthorized = 1;
+  forbidden = 2;
+  not_found = 3;
+  method_not_allowed = 4;
+  not_acceptable = 5;
+  request_timeout = 6;
+  state_conflict = 7;
+  not_implemented = 8;
+  request_cancelled = 9;
+  internal = 10;
+}
+
+message ApiError {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      description: "Описание ошибки";
+      required: "error";
+    };
+  };
+
+  BaseError error = 1;
+}
+
+message BaseError {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: "code";
+      required: "message";
+    };
+  };
+
+  ApiErrorCode code = 1;
+  string message = 2 [
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+      description: "Описание ошибки";
+    }
+  ];
+  ApiErrorParams params = 3;
+}
+
+message ApiErrorParams {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      description: "Параметры ошибки";
+    };
+  };
+
+  repeated ValidationInfo validations = 1 [
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+      description: "Информации о валидации полей";
+    }
+  ];
+  repeated string additional_info = 2 [
+    json_name = "additional_info",
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+      description: "Дополнительная информация о ошибке";
+    }
+  ];
+}
+
+message ValidationInfo {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      description: "Информация о валидации поля";
+      required: "field";
+      required: "message";
+    };
+  };
+
+  string field = 1;
+  string message = 2;
+}

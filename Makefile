@@ -2,6 +2,9 @@ BINARY_NAME = myapp
 OUTPUT_DIR = bin
 
 GOBUILD=go build -o ${OUTPUT_DIR}/${BINARY_NAME}
+GOPATH ?= $(shell go env GOPATH)
+GOMODCACHE ?= $(shell go env GOMODCACHE)
+GRPC_GATEWAY_V2_DIR ?= $(GOMODCACHE)/github.com/grpc-ecosystem/grpc-gateway/v2@v2.29.0
 
 .DEFAULT_GOAL := help
 
@@ -41,7 +44,29 @@ generate-http-api:
 .PHONY: generate-grpc-api
 generate-grpc-api:
 	mkdir -p pkg/api
-	protoc --go_out=pkg/api --go-grpc_out=pkg/api cmd/api/proto/orders.proto
+	protoc \
+		-I . \
+		-I pkg \
+		-I "$(GRPC_GATEWAY_V2_DIR)" \
+		--go_out=pkg/api \
+		--go-grpc_out=pkg/api \
+		cmd/api/proto/common.proto \
+		cmd/api/proto/orders.proto
+
+.PHONY: generate-grpc-gateway-api
+generate-grpc-gateway-api:
+	mkdir -p pkg/api cmd/api/openapi/orders/generated
+	protoc \
+		-I . \
+		-I pkg \
+		-I "$(GRPC_GATEWAY_V2_DIR)" \
+		--go_out=pkg/api \
+		--go-grpc_out=pkg/api \
+		--grpc-gateway_out=pkg/api \
+		--openapiv2_out=cmd/api/openapi/orders/generated \
+		--openapiv2_opt=output_format=yaml,json_names_for_fields=true,simple_operation_ids=true,preserve_rpc_order=true,allow_merge=true,merge_file_name=orders,openapi_naming_strategy=simple,disable_default_errors=true,disable_default_responses=true \
+		cmd/api/proto/common.proto \
+		cmd/api/proto/orders.proto
 
 .PHONY: generate-mockgen
 generate-mockgen:

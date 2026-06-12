@@ -9,19 +9,19 @@ import (
 func mapStatusToProto(s pvz_domain.OrderStatus) orders_proto.OrderStatus {
 	switch s {
 	case pvz_domain.OrderStatusReceived:
-		return orders_proto.OrderStatus_RECEIVED
+		return orders_proto.OrderStatus_received
 	case pvz_domain.OrderStatusReturned:
-		return orders_proto.OrderStatus_RETURNED
+		return orders_proto.OrderStatus_returned
 	case pvz_domain.OrderStatusRefunded:
-		return orders_proto.OrderStatus_REFUNDED
+		return orders_proto.OrderStatus_refunded
 	case pvz_domain.OrderStatusDelivered:
-		return orders_proto.OrderStatus_DELIVERED
+		return orders_proto.OrderStatus_delivered
 	case pvz_domain.OrderStatusExpired:
-		return orders_proto.OrderStatus_STORAGE_ENDED
+		return orders_proto.OrderStatus_storage_ended
 	case pvz_domain.OrderStatusNone:
-		return orders_proto.OrderStatus_NONE
+		return orders_proto.OrderStatus_none
 	default:
-		return orders_proto.OrderStatus_NONE
+		return orders_proto.OrderStatus_none
 	}
 }
 
@@ -50,6 +50,7 @@ func mapDomainOrderToProtoOrder(o *pvz_domain.Order) *orders_proto.Order {
 		ExpirationDate: timestamppb.New(o.ExpirationDate),
 		DeliveredDate:  timePtrToProto(o.DeliveredDate),
 		RefundedDate:   timePtrToProto(o.RefundedDate),
+		ReturnedDate:   timePtrToProto(o.ReturnedDate),
 		Status:         mapStatusToProto(o.Status),
 		History:        mapHistoryToProto(o.History),
 		Weight:         o.Weight,
@@ -57,7 +58,7 @@ func mapDomainOrderToProtoOrder(o *pvz_domain.Order) *orders_proto.Order {
 	}
 }
 
-func mapToDomainOrderParams(p *orders_proto.CreateOrderRequest_OrderParams) *pvz_domain.OrderParams {
+func mapToDomainOrderParams(p *orders_proto.OrderCreateRequest_OrderParams) *pvz_domain.OrderParams {
 	if p == nil {
 		return nil
 	}

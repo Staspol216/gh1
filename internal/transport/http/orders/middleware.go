@@ -10,8 +10,45 @@ import (
 	"github.com/Staspol216/gh1/pkg/monitoring"
 	"github.com/Staspol216/gh1/pkg/tracing"
 	"github.com/go-chi/chi/v5"
+	chi_middleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/render"
 	"go.uber.org/zap"
 )
+
+func NewGatewayRouter(gateway http.Handler) http.Handler {
+	r := chi.NewRouter()
+	r.Use(chi_middleware.RequestID)
+	r.Use(chi_middleware.Recoverer)
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Use(tracingMiddleware)
+	r.Use(metricsMiddleware)
+
+	handler := logSelectedGatewayRequests(gateway)
+	r.Method(http.MethodGet, "/ping", handler)
+	r.Method(http.MethodGet, "/orders", handler)
+	r.Method(http.MethodPost, "/orders", handler)
+	r.Method(http.MethodPatch, "/orders", handler)
+	r.Method(http.MethodGet, "/orders/{orderID}", handler)
+	r.Method(http.MethodDelete, "/orders/{orderID}", handler)
+	r.Method(http.MethodGet, "/orders/refunds", handler)
+	r.Method(http.MethodGet, "/orders-history", handler)
+
+	r.NotFound(gateway.ServeHTTP)
+	r.MethodNotAllowed(gateway.ServeHTTP)
+
+	return r
+}
+
+func logSelectedGatewayRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if shouldLogRequest(r) {
+			requestLogger(next).ServeHTTP(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
 
 func metricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

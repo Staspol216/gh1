@@ -1,75 +1,541 @@
-syntax="proto3";
+syntax = "proto3";
 
 package orders.proto;
 
 option go_package = "orders.proto";
 
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "Orders API";
+    version: "1.0.0";
+  };
+  consumes: "application/json";
+  produces: "application/json";
+};
 
 service OrdersService {
-    rpc GetOrders(GetOrdersRequest) returns (GetOrdersResponse);
-    rpc UpdateOrders(UpdateOrdersRequest) returns (UpdateOrdersResponse);
-    rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
-    rpc DeleteOrder(DeleteOrderRequest) returns (DeleteOrderResponse);
+  rpc GetPing(GetPingRequest) returns (GetPingResponse) {
+    option (google.api.http) = {
+      get: "/ping"
+      response_body: "message"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Health check";
+      operation_id: "GetPing";
+      tags: "health";
+      produces: "text/plain";
+      responses: {
+        key: "200";
+        value: {
+          description: "OK";
+          schema: {
+            json_schema: {
+              type: STRING;
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
+
+  rpc GetOrders(GetOrdersRequest) returns (GetOrdersResponse) {
+    option (google.api.http) = {get: "/orders"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of Orders";
+      operation_id: "GetOrders";
+      tags: "order";
+      responses: {
+        key: "200";
+        value: {
+          description: "OK";
+          schema: {
+            json_schema: {
+              ref: ".orders.proto.GetOrdersResponse";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "400";
+        value: {
+          description: "Bad Request";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
+
+  rpc GetOrder(GetOrderRequest) returns (Order) {
+    option (google.api.http) = {get: "/orders/{order_id}"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve order by ID for recipient";
+      operation_id: "GetOrder";
+      tags: "order";
+      responses: {
+        key: "200";
+        value: {
+          description: "OK";
+          schema: {
+            json_schema: {
+              ref: ".orders.proto.Order";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "400";
+        value: {
+          description: "Bad Request";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "404";
+        value: {
+          description: "Not Found";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
+
+  rpc GetRefundedOrders(GetOrdersRequest) returns (GetOrdersResponse) {
+    option (google.api.http) = {get: "/orders/refunds"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve refunded orders";
+      operation_id: "GetRefundedOrders";
+      tags: "order";
+      responses: {
+        key: "200";
+        value: {
+          description: "OK";
+          schema: {
+            json_schema: {
+              ref: ".orders.proto.GetOrdersResponse";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "400";
+        value: {
+          description: "Bad Request";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
+
+  rpc GetOrdersHistory(GetOrdersRequest) returns (GetOrdersResponse) {
+    option (google.api.http) = {get: "/orders-history"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve orders history";
+      operation_id: "GetOrdersHistory";
+      tags: "order";
+      responses: {
+        key: "200";
+        value: {
+          description: "OK";
+          schema: {
+            json_schema: {
+              ref: ".orders.proto.GetOrdersResponse";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "400";
+        value: {
+          description: "Bad Request";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
+
+  rpc UpdateOrders(OrderUpdateRequest) returns (UpdateOrdersResponse) {
+    option (google.api.http) = {
+      patch: "/orders"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Deliver or refund orders for recipient";
+      operation_id: "UpdateOrders";
+      tags: "order";
+      responses: {
+        key: "204";
+        value: {description: "Order operation completed successfully"};
+      };
+      responses: {
+        key: "400";
+        value: {
+          description: "Bad Request";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
+
+  rpc CreateOrder(OrderCreateRequest) returns (OrderIDResponse) {
+    option (google.api.http) = {
+      post: "/orders"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Accept an order from courier";
+      operation_id: "CreateOrder";
+      tags: "order";
+      responses: {
+        key: "201";
+        value: {
+          description: "Created";
+          schema: {
+            json_schema: {
+              ref: ".orders.proto.OrderIDResponse";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "400";
+        value: {
+          description: "Bad Request";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
+
+  rpc DeleteOrder(DeleteOrderRequest) returns (DeleteOrderResponse) {
+    option (google.api.http) = {delete: "/orders/{order_id}"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Return order to courier";
+      operation_id: "DeleteOrder";
+      tags: "order";
+      responses: {
+        key: "204";
+        value: {description: "Order operation completed successfully"};
+      };
+      responses: {
+        key: "400";
+        value: {
+          description: "Bad Request";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "404";
+        value: {
+          description: "Not Found";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+      responses: {
+        key: "default";
+        value: {
+          description: "General error response";
+          schema: {
+            json_schema: {
+              ref: ".common.proto.ApiError";
+            };
+          };
+        };
+      };
+    };
+  }
 }
 
 enum OrderStatus {
-  RECEIVED = 0;
-  RETURNED = 1;
-  DELIVERED = 2;
-  REFUNDED = 3;
-  STORAGE_ENDED = 4;
-  NONE = 5;
+  received = 0;
+  returned = 1;
+  delivered = 2;
+  refunded = 3;
+  storage_ended = 4;
+  none = 5;
+}
+
+enum PackagingType {
+  box = 0;
+  bag = 1;
+  membrana = 2;
+}
+
+enum OrderUpdateAction {
+  deliver = 0;
+  refund = 1;
 }
 
 message OrderRecord {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+      json_schema: {
+        required: "status";
+        required: "description";
+        required: "timestamp";
+      };
+    };
+
     google.protobuf.Timestamp timestamp = 1;
     OrderStatus status = 2;
     string description = 3; 
 }
 
 message Order {
-    int64 id = 1;
-    int64 recipient_id = 2;
-    google.protobuf.Timestamp expiration_date = 3;
-    google.protobuf.Timestamp delivered_date = 4;
-    google.protobuf.Timestamp refunded_date = 5;
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+      json_schema: {
+        required: "id";
+        required: "recipient_id";
+        required: "expiration_date";
+        required: "history";
+        required: "status";
+        required: "weight";
+        required: "worth";
+      };
+    };
+
+    int64 id = 1 [
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
+    int64 recipient_id = 2 [
+      json_name = "recipient_id",
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
+    google.protobuf.Timestamp expiration_date = 3 [json_name = "expiration_date"];
+    google.protobuf.Timestamp delivered_date = 4 [json_name = "delivered_date"];
+    google.protobuf.Timestamp refunded_date = 5 [json_name = "refunded_date"];
     OrderStatus status = 6;
     repeated OrderRecord history = 7;
-    double Weight = 8;
-    double Worth = 9;
+    double weight = 8;
+    double worth = 9;
+    google.protobuf.Timestamp returned_date = 10 [json_name = "returned_date"];
 }
 
 
 message GetOrdersRequest {
-    int64 limit = 1;
-    int64 offset = 2;
+    int64 limit = 1 [
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+        minimum: 1;
+        maximum: 100;
+        default: "10";
+      }
+    ];
+    int64 offset = 2 [
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: STRING;
+        default: "0";
+      }
+    ];
 }
 
 message GetOrdersResponse {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+      json_schema: {
+        required: "orders";
+      };
+    };
+
     repeated Order orders = 1;
 }
 
-message CreateOrderRequest {
+message OrderCreateRequest {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+      json_schema: {
+        required: "order";
+        required: "packaging_type";
+        required: "membrana_included";
+      };
+    };
+
     message OrderParams {
-        int64 recipient_id = 1;
-        google.protobuf.Timestamp expiration_date = 2;
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+          json_schema: {
+            required: "recipient_id";
+            required: "expiration_date";
+            required: "weight";
+            required: "worth";
+          };
+        };
+
+        int64 recipient_id = 1 [
+          json_name = "recipient_id",
+          (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+            type: INTEGER;
+            format: "int64";
+          }
+        ];
+        google.protobuf.Timestamp expiration_date = 2 [json_name = "expiration_date"];
         double weight = 3;
         double worth = 4;
     }
     OrderParams order = 1;
-    string packaging_type = 2;
-    bool membrana_included = 3;
+    PackagingType packaging_type = 2 [json_name = "packagingType"];
+    bool membrana_included = 3 [json_name = "membranaIncluded"];
 }
 
-message CreateOrderResponse {
-    int64 order_id = 1;
+message OrderIDResponse {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+      json_schema: {
+        required: "order_id";
+      };
+    };
+
+    int64 order_id = 1 [
+      json_name = "order_id",
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
 }
 
-message UpdateOrdersRequest {
-    repeated int64 order_ids = 1;
-    int64 recipient_id = 2;
-    string action = 3;
+message OrderUpdateRequest {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+      json_schema: {
+        required: "order_ids";
+        required: "recipient_id";
+        required: "action";
+      };
+    };
+
+    repeated int64 order_ids = 1 [
+      json_name = "order_ids",
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
+    int64 recipient_id = 2 [
+      json_name = "recipient_id",
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
+    OrderUpdateAction action = 3;
 }
 
 message UpdateOrdersResponse {
@@ -77,9 +543,45 @@ message UpdateOrdersResponse {
 }
 
 message DeleteOrderRequest {
-    int64 order_id = 1;
+    int64 order_id = 1 [
+      json_name = "orderID",
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
 }
 
 message DeleteOrderResponse {
     
+}
+
+message GetOrderRequest {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+      json_schema: {
+        required: "recipient_id";
+      };
+    };
+
+    int64 order_id = 1 [
+      json_name = "orderID",
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
+    int64 recipient_id = 2 [
+      json_name = "recipientID",
+      (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        type: INTEGER;
+        format: "int64";
+      }
+    ];
+}
+
+message GetPingRequest {
+}
+
+message GetPingResponse {
+    string message = 1;
 }
