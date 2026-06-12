@@ -11,14 +11,14 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/Staspol216/gh1/internal/config"
-	"github.com/Staspol216/gh1/internal/handlers/grpc"
-	"github.com/Staspol216/gh1/internal/handlers/http"
 	"github.com/Staspol216/gh1/internal/infra/order_outbox"
 	"github.com/Staspol216/gh1/internal/infra/postgres"
 	"github.com/Staspol216/gh1/internal/infra/repository/order"
 	"github.com/Staspol216/gh1/internal/infra/tx_manager"
 	"github.com/Staspol216/gh1/internal/service/order"
 	"github.com/Staspol216/gh1/internal/service/order_audit"
+	"github.com/Staspol216/gh1/internal/transport/grpc"
+	"github.com/Staspol216/gh1/internal/transport/http/orders"
 	"github.com/Staspol216/gh1/pkg/api/orders.proto"
 	"github.com/Staspol216/gh1/pkg/logger"
 	"github.com/Staspol216/gh1/pkg/monitoring"
@@ -34,13 +34,14 @@ func main() {
 		jobsCount = 5
 	)
 	defer app_logger.MyLogger.Sync()
-	monitoring.StartMetricsServer()
 
 	cfg, err := pvz_config.Load()
-
 	if err != nil {
 		app_logger.MyLogger.Fatal("load config error", zap.Error(err))
 	}
+
+	monitoring.StartMetricsServer(cfg.PrometheusAddr(), cfg.PrometheusPath)
+
 	_, tracingCloser := tracing.InitTracer(cfg.AppName, cfg.JaegerCollectorEndpoint())
 	defer tracingCloser.Close()
 
@@ -129,8 +130,6 @@ func main() {
 
 	pvzService := pvz_order_service.NewPvzService(orderRepo, orderOutbox, orderCache, txManager)
 
-	httpHandler := pvz_http.New(sigCtx, pvzService)
-
 	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.BackendGRPCPort))
 
 	if err != nil {
@@ -151,8 +150,10 @@ func main() {
 		}
 	})
 
+	oapiHandler := orders_http_handler.NewHandler(pvzService, sigCtx)
+
 	wg.Go(func() {
-		if err := httpHandler.Serve(cfg); err != nil {
+		if err := oapiHandler.Serve(cfg); err != nil {
 			app_logger.MyLogger.Error("HTTP server error", zap.Error(err))
 		}
 	})

@@ -38,6 +38,11 @@ type Config struct {
 	KafkaHost string `envconfig:"KAFKA_HOST" required:"true"`
 	KafkaPort int    `envconfig:"KAFKA_PORT" default:"9092"`
 
+	// Prometheus
+	PrometheusHost string `envconfig:"PROMETHEUS_HOST" default:"localhost"`
+	PrometheusPath string `envconfig:"PROMETHEUS_PATH" default:"/metrics"`
+	PrometheusPort int    `envconfig:"PROMETHEUS_PORT" default:"9090"`
+
 	// Jaeger
 	JaegerHost          string `envconfig:"JAEGER_HOST" default:"localhost"`
 	JaegerCollectorPort int    `envconfig:"JAEGER_COLLECTOR_PORT" default:"14268"`
@@ -106,6 +111,10 @@ func (c *Config) RedisAddr() string {
 
 func (c *Config) KafkaAddr() string {
 	return c.KafkaHost + ":" + strconv.Itoa(c.KafkaPort)
+}
+
+func (c *Config) PrometheusAddr() string {
+	return c.PrometheusHost + ":" + strconv.Itoa(c.PrometheusPort)
 }
 
 func (c *Config) JaegerCollectorEndpoint() string {

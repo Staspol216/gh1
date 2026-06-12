@@ -33,11 +33,15 @@ migration-up:
 .PHONY: migration-down
 migration-down:
 	goose -dir "$(MIGRATIONS_DIR)" postgres "$(GOOSE_DBSTRING)" down
-	
-.PHONY: generate-orders-api
-generate-orders-api:
+
+.PHONY: generate-http-api
+generate-http-api:
+	go generate -run=oapi-codegen ./...
+
+.PHONY: generate-grpc-api
+generate-grpc-api:
 	mkdir -p pkg/api
-	protoc --go_out=pkg/api --go-grpc_out=pkg/api cmd/api/orders.proto
+	protoc --go_out=pkg/api --go-grpc_out=pkg/api cmd/api/proto/orders.proto
 
 .PHONY: generate-mockgen
 generate-mockgen:

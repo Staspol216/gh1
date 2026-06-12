@@ -149,12 +149,12 @@ func SetGrpcRequestCountWithStatus(status string) {
 	grpcRequestsTotal.WithLabelValues("unknown", status).Inc()
 }
 
-func StartMetricsServer() {
+func StartMetricsServer(Addr string, path string) {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle(path, promhttp.Handler())
 
 	server := &http.Server{
-		Addr:              ":9090",
+		Addr:              Addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}

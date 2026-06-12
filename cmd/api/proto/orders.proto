@@ -14,11 +14,11 @@ service OrdersService {
 }
 
 enum OrderStatus {
-  RECEVIED = 0;
+  RECEIVED = 0;
   RETURNED = 1;
   DELIVERED = 2;
   REFUNDED = 3;
-  STRAGE_ENDED = 4;
+  STORAGE_ENDED = 4;
   NONE = 5;
 }
 

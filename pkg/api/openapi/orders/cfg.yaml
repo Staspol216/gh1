@@ -1,0 +1,14 @@
+package: orders_dto
+
+output: orders_server.gen.go
+generate:
+  models: true
+  chi-server: true
+  strict-server: true
+  embedded-spec: true
+compatibility:
+  apply-chi-middleware-first-to-last: true
+output-options:
+  skip-prune: true
+import-mapping:
+  ../common/common.yaml: github.com/Staspol216/gh1/pkg/api/openapi/common

@@ -1,0 +1,77 @@
+openapi: 3.0.2
+
+info:
+  title: Common OpenAPI definitions
+  version: "1.0"
+  description: Common entities
+
+components:
+  responses:
+    ApiErrorResponse:
+      description: General error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+  schemas:
+    ApiErrorCode:
+      type: string
+      enum:
+        - bad_request # 400
+        - unauthorized # 401
+        - forbidden # 403
+        - not_found # 404
+        - method_not_allowed # 405
+        - not_acceptable # 406
+        - request_timeout # 408
+        - state_conflict # 409
+        - not_implemented # 501
+        - request_cancelled # 499
+        - internal # 500
+    ApiError:
+      description: Описание ошибки
+      type: object
+      properties:
+        error:
+          $ref: "#/components/schemas/BaseError"
+      required:
+        - error
+    BaseError:
+      type: object
+      properties:
+        code:
+          $ref: "#/components/schemas/ApiErrorCode"
+        message:
+          type: string
+          description: Описание ошибки
+        params:
+          $ref: "#/components/schemas/ApiErrorParams"
+      required:
+        - code
+        - message
+    ApiErrorParams:
+      type: object
+      description: Параметры ошибки
+      properties:
+        validations:
+          description: Информации о валидации полей
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationInfo"
+        additional_info:
+          description: Дополнительная информация о ошибке
+          type: array
+          items:
+            type: string
+    ValidationInfo:
+      description: Информация о валидации поля
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+      required:
+        - field
+        - message

@@ -1,0 +1,9 @@
+package: common_dto
+output: common.gen.go
+generate:
+  models: true
+  strict-server: true
+  embedded-spec: true
+output-options:
+  # to make sure that all types are generated
+  skip-prune: true
