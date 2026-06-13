@@ -13,6 +13,7 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
     title: "Orders API";
     version: "1.0.0";
   };
+  schemes: HTTP,
   consumes: "application/json";
   produces: "application/json";
 };
@@ -385,9 +386,7 @@ enum OrderUpdateAction {
 message OrderRecord {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
       json_schema: {
-        required: "status";
-        required: "description";
-        required: "timestamp";
+        required: ["status", "description", "timestamp"]
       };
     };
 
@@ -399,13 +398,7 @@ message OrderRecord {
 message Order {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
       json_schema: {
-        required: "id";
-        required: "recipient_id";
-        required: "expiration_date";
-        required: "history";
-        required: "status";
-        required: "weight";
-        required: "worth";
+        required: ["id", "recipient_id", "expiration_date", "history", "status", "weight", "worth"]
       };
     };
 
@@ -454,7 +447,7 @@ message GetOrdersRequest {
 message GetOrdersResponse {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
       json_schema: {
-        required: "orders";
+        required: ["orders"]
       };
     };
 
@@ -464,19 +457,14 @@ message GetOrdersResponse {
 message OrderCreateRequest {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
       json_schema: {
-        required: "order";
-        required: "packaging_type";
-        required: "membrana_included";
+        required: ["order", "packaging_type", "membrana_included"]
       };
     };
 
     message OrderParams {
         option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
           json_schema: {
-            required: "recipient_id";
-            required: "expiration_date";
-            required: "weight";
-            required: "worth";
+            required: ["recipient_id", "expiration_date", "weight", "worth"]
           };
         };
 
@@ -499,7 +487,7 @@ message OrderCreateRequest {
 message OrderIDResponse {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
       json_schema: {
-        required: "order_id";
+        required: ["order_id"]
       };
     };
 
@@ -515,9 +503,7 @@ message OrderIDResponse {
 message OrderUpdateRequest {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
       json_schema: {
-        required: "order_ids";
-        required: "recipient_id";
-        required: "action";
+        required: ["order_ids", "recipient_id", "action"]
       };
     };
 
@@ -559,7 +545,7 @@ message DeleteOrderResponse {
 message GetOrderRequest {
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
       json_schema: {
-        required: "recipient_id";
+        required: ["recipient_id"]
       };
     };
 

@@ -23,31 +23,21 @@ func NewGatewayRouter(gateway http.Handler) http.Handler {
 	r.Use(tracingMiddleware)
 	r.Use(metricsMiddleware)
 
-	handler := logSelectedGatewayRequests(gateway)
-	r.Method(http.MethodGet, "/ping", handler)
-	r.Method(http.MethodGet, "/orders", handler)
-	r.Method(http.MethodPost, "/orders", handler)
-	r.Method(http.MethodPatch, "/orders", handler)
-	r.Method(http.MethodGet, "/orders/{orderID}", handler)
-	r.Method(http.MethodDelete, "/orders/{orderID}", handler)
-	r.Method(http.MethodGet, "/orders/refunds", handler)
-	r.Method(http.MethodGet, "/orders-history", handler)
+	loggedGateway := requestLoggingMiddleware(gateway)
+	r.Method(http.MethodPost, "/orders", loggedGateway)
+	r.Method(http.MethodPatch, "/orders", loggedGateway)
+	r.Method(http.MethodDelete, "/orders/{orderID}", loggedGateway)
+
+	r.Method(http.MethodGet, "/ping", gateway)
+	r.Method(http.MethodGet, "/orders", gateway)
+	r.Method(http.MethodGet, "/orders/{orderID}", gateway)
+	r.Method(http.MethodGet, "/orders/refunds", gateway)
+	r.Method(http.MethodGet, "/orders-history", gateway)
 
 	r.NotFound(gateway.ServeHTTP)
 	r.MethodNotAllowed(gateway.ServeHTTP)
 
 	return r
-}
-
-func logSelectedGatewayRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if shouldLogRequest(r) {
-			requestLogger(next).ServeHTTP(w, r)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 func metricsMiddleware(next http.Handler) http.Handler {
@@ -83,20 +73,7 @@ func tracingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func shouldLogRequest(r *http.Request) bool {
-	routePattern := chi.RouteContext(r.Context()).RoutePattern()
-
-	switch r.Method {
-	case http.MethodPost, http.MethodPatch:
-		return routePattern == "/orders"
-	case http.MethodDelete:
-		return routePattern == "/orders/{orderID}"
-	default:
-		return false
-	}
-}
-
-func requestLogger(next http.Handler) http.Handler {
+func requestLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 

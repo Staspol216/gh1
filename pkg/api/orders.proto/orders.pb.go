@@ -1094,9 +1094,9 @@ const file_cmd_api_proto_orders_proto_rawDesc = "" +
 	"\x18\x1a\x16.common.proto.ApiErrorJ?\n" +
 	"\adefault\x124\n" +
 	"\x16General error response\x12\x1a\n" +
-	"\x18\x1a\x16.common.proto.ApiError\x82\xd3\xe4\x93\x02\x14*\x12/orders/{order_id}BJ\x92A9\x12\x13\n" +
+	"\x18\x1a\x16.common.proto.ApiError\x82\xd3\xe4\x93\x02\x14*\x12/orders/{order_id}BM\x92A<\x12\x13\n" +
 	"\n" +
-	"Orders API2\x051.0.02\x10application/json:\x10application/jsonZ\forders.protob\x06proto3"
+	"Orders API2\x051.0.0*\x01\x012\x10application/json:\x10application/jsonZ\forders.protob\x06proto3"
 
 var (
 	file_cmd_api_proto_orders_proto_rawDescOnce sync.Once

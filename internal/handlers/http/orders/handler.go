@@ -157,24 +157,6 @@ func (h *Handler) Serve(cfg *pvz_config.Config) error {
 
 	r.Use(oapi_middleware.OapiRequestValidator(swagger))
 
-	strictWrapper := orders_dto.NewStrictHandler(h, nil)
-
-	orders_dto.HandlerWithOptions(strictWrapper, orders_dto.ChiServerOptions{
-		BaseRouter: r,
-		Middlewares: []orders_dto.MiddlewareFunc{
-			func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if shouldLogRequest(r) {
-						requestLogger(next).ServeHTTP(w, r)
-						return
-					}
-
-					next.ServeHTTP(w, r)
-				})
-			},
-		},
-	})
-
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr(),
 		Handler: r,
